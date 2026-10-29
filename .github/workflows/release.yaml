@@ -1,0 +1,78 @@
+name: Release binaries
+on:
+  push:
+    tags:
+      - v[0-9]*
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  binaries:
+    name: Verify and build binaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: 1.27.3
+          cache: false
+      - name: Lint (including tests)
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
+        with:
+          version: v2.15.0
+      - name: Verify before releasing
+        run: make check
+      - name: Build macOS and Linux binaries
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for os in darwin linux; do
+            for arch in amd64 arm64; do
+              CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOTOOLCHAIN=local \
+                go build -trimpath -ldflags="-s -w" \
+                -o "dist/claude-proxy_${os}_${arch}" ./cmd/claude-proxy
+            done
+          done
+          cp LICENSE dist/LICENSE
+          cp "docs/releases/$RELEASE_TAG.md" dist/RELEASE_NOTES.md
+          (cd dist && sha256sum claude-proxy_* LICENSE > SHA256SUMS)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: binaries
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+  publish:
+    name: Publish binary release
+    needs: binaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # Create the release and upload its verified binary assets.
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: binaries
+          path: dist
+      - name: Verify checksums and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum --check SHA256SUMS)
+          gh release create "$RELEASE_TAG" dist/claude-proxy_* dist/LICENSE dist/SHA256SUMS \
+            --verify-tag --title "$RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md \
+            --prerelease --latest=false

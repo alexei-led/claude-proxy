@@ -1,0 +1,23 @@
+{
+  "model": "exact-model",
+  "stream": true,
+  "metadata": { "user_id": "synthetic-fixture" },
+  "unknown": { "model": "not-the-route", "extension": [true, null, 1] },
+  "system": [{ "type": "text", "text": "synthetic", "cache_control": { "type": "ephemeral" } }],
+  "messages": [
+    {
+      "role": "assistant",
+      "content": [
+        { "type": "thinking", "thinking": "opaque", "signature": "synthetic-signature" },
+        { "type": "tool_use", "id": "synthetic-id", "name": "synthetic", "input": { "a": 1 } }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        { "type": "tool_result", "tool_use_id": "synthetic-id", "content": "synthetic-result" }
+      ]
+    }
+  ],
+  "tools": [{ "name": "synthetic", "input_schema": { "type": "object" } }]
+}

@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+updates=false
+head=$(git rev-parse --verify HEAD 2>/dev/null || true)
+while read -r local_ref local_sha remote_ref remote_sha; do
+	: "$local_ref" "$remote_sha"
+	case "$remote_ref" in
+	refs/heads/main | refs/heads/master)
+		bootstrap=false
+		# A new repository needs one initial main push before PRs can exist.
+		# Require its only commit, an absent destination and an empty remote.
+		if [[ "$remote_ref" == refs/heads/main &&
+			"$remote_sha" == 0000000000000000000000000000000000000000 &&
+			-n "$head" && "$local_sha" == "$head" && $# -gt 0 &&
+			"$(git rev-list --count "$head")" == 1 ]]; then
+			remote_refs=$(git ls-remote -- "$1") || exit 1
+			if [[ -z "$remote_refs" ]]; then bootstrap=true; fi
+		fi
+		if [[ "$bootstrap" != true ]]; then
+			printf 'Default-branch pushes are blocked; use a PR.\n' >&2
+			exit 1
+		fi
+		printf 'Initial main bootstrap: full push validation remains required.\n' >&2
+		;;
+	esac
+	if [[ "$local_sha" != 0000000000000000000000000000000000000000 ]]; then
+		commit=$(git rev-parse --verify "$local_sha^{commit}")
+		if [[ "$commit" != "$head" ]]; then
+			printf 'Check out the commit being pushed before validation.\n' >&2
+			exit 1
+		fi
+		updates=true
+	fi
+done
+if [[ "$updates" == false ]]; then exit 0; fi
+
+cd "$(git rev-parse --show-toplevel)"
+if [[ -n "$(git status --porcelain)" ]]; then
+	printf 'Push validation requires a clean checkout.\n' >&2
+	exit 1
+fi
+for tool in make gitleaks go golangci-lint; do
+	command -v "$tool" >/dev/null || {
+		printf 'Required tool missing: %s. Install it explicitly; hook fails closed.\n' "$tool" >&2
+		exit 1
+	}
+done
+gitleaks git --redact --no-banner
+make check

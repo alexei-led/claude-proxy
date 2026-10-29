@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "profile": "work",
+  "listen": "127.0.0.1:43172",
+  "access_token_file": "secrets/work-access.key",
+  "upstreams": {
+    "anthropic": {
+      "messages_url": "https://company-proxy.example.invalid/v1/messages",
+      "count_tokens_url": "https://company-proxy.example.invalid/v1/messages/count_tokens",
+      "auth": {
+        "mode": "oauth_passthrough"
+      }
+    },
+    "deepseek": {
+      "messages_url": "https://api.deepseek.com/anthropic/v1/messages",
+      "auth": {
+        "mode": "bearer",
+        "key_file": "secrets/deepseek-work.key"
+      }
+    },
+    "zai": {
+      "messages_url": "https://api.z.ai/api/anthropic/v1/messages",
+      "auth": {
+        "mode": "bearer",
+        "key_file": "secrets/zai-work.key"
+      }
+    },
+    "local": {
+      "messages_url": "http://127.0.0.1:11434/v1/messages",
+      "auth": {
+        "mode": "none"
+      }
+    }
+  },
+  "models": {
+    "claude-opus-5-5": {
+      "upstream": "anthropic",
+      "display_name": "Claude Opus"
+    },
+    "deepseek-flash": {
+      "upstream": "deepseek",
+      "display_name": "DeepSeek Flash"
+    },
+    "glm-5.3-flash": {
+      "upstream": "zai",
+      "display_name": "GLM Flash"
+    },
+    "qwen3-coder:30b": {
+      "upstream": "local",
+      "display_name": "Local Qwen"
+    }
+  }
+}

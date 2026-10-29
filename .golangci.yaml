@@ -1,0 +1,44 @@
+version: "2"
+run:
+  timeout: 5m
+  tests: true
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - revive
+    - ineffassign
+    - unused
+    - gocritic
+    - gocyclo
+    - goconst
+    - gosec
+    - prealloc
+    - unconvert
+    - unparam
+    - nolintlint
+    - misspell
+    - whitespace
+    - errorlint
+    - perfsprint
+    - usestdlibvars
+    - bodyclose
+    - canonicalheader
+    - contextcheck
+    - fatcontext
+    - noctx
+    - durationcheck
+    - nilerr
+    - nilnil
+  exclusions:
+    presets: []
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/alexei-led/claude-proxy

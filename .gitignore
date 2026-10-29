@@ -1,0 +1,27 @@
+# Build, coverage and release output
+/bin/
+/dist/
+/claude-proxy
+/coverage.out
+/coverage.html
+*.test
+*.prof
+
+# Operator-owned runtime files (never use these paths for fixtures)
+/config.local/
+/secrets/
+/personal.json
+/work.json
+.env
+.env.local
+*.key
+
+# Local agent state and captures
+/.pi/
+/.gitnexus/
+/captures/
+
+# OS/editor state
+.DS_Store
+*.swp
+*.swo

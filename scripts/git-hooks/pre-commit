@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if ((BASH_VERSINFO[0] < 4)); then
+	printf 'Bash 4+ required; select an installed Bash explicitly.\n' >&2
+	exit 1
+fi
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+case "$(git symbolic-ref --short HEAD)" in
+main | master)
+	printf 'Use a feature branch; default-branch commits are blocked.\n' >&2
+	exit 1
+	;;
+esac
+for tool in gitleaks go golangci-lint; do
+	command -v "$tool" >/dev/null || {
+		printf 'Required tool missing: %s. Install it explicitly; hook fails closed.\n' "$tool" >&2
+		exit 1
+	}
+done
+gitleaks git --pre-commit --redact --staged --no-banner
+
+files=()
+packages=()
+shells=()
+workflows=()
+lint_config=false
+while IFS= read -r -d '' path; do
+	case "$path" in
+	*.go)
+		files+=("$path")
+		package="./$(dirname -- "$path")"
+		found=false
+		for existing in "${packages[@]}"; do
+			if [[ "$existing" == "$package" ]]; then found=true; fi
+		done
+		if [[ "$found" == false ]]; then packages+=("$package"); fi
+		;;
+	.golangci.yaml) lint_config=true ;;
+	scripts/git-hooks/* | scripts/*.sh) shells+=("$path") ;;
+	.github/workflows/*.yaml) workflows+=("$path") ;;
+	esac
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+# Check the index snapshot, not unstaged edits. Never fix or restage files.
+snapshot=$(mktemp -d)
+trap 'rm -rf -- "$snapshot"' EXIT
+git checkout-index --all --prefix="$snapshot/"
+cd "$snapshot"
+export GOTOOLCHAIN=local
+golangci-lint version | grep -Eq 'version 2\.15\.0( |$)' || {
+	printf 'golangci-lint 2.15.0 required.\n' >&2
+	exit 1
+}
+if [[ "$lint_config" == true ]]; then golangci-lint config verify; fi
+if [[ ${#files[@]} != 0 ]]; then
+	formatted=$(gofmt -l "${files[@]}")
+	if [[ -n "$formatted" ]]; then
+		printf 'Staged Go files need formatting.\n' >&2
+		exit 1
+	fi
+	if ! imports=$(golangci-lint fmt --diff "${files[@]}") || [[ -n "$imports" ]]; then
+		printf 'Staged Go files need formatting.\n' >&2
+		exit 1
+	fi
+	golangci-lint run "${packages[@]}"
+fi
+if [[ ${#shells[@]} != 0 ]]; then
+	shellcheck "${shells[@]}"
+	shfmt -d "${shells[@]}"
+fi
+if [[ ${#workflows[@]} != 0 ]]; then
+	actionlint "${workflows[@]}"
+	zizmor --offline "${workflows[@]}"
+fi
