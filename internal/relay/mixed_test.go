@@ -43,7 +43,7 @@ func TestCrossProviderTurns(t *testing.T) {
 			local := httptest.NewServer(relay)
 			defer local.Close()
 			for _, tier := range []string{"high", "medium", "low", "micro", "high"} {
-				id := profile.Models[profile.Routes[tier].Model].ID
+				id := routerAPIModelID(profile.Models[profile.Routes[tier].Model].ID)
 				encoded, marshalErr := json.Marshal(id)
 				if marshalErr != nil {
 					t.Fatal(marshalErr)

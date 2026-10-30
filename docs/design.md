@@ -86,8 +86,9 @@ The catalog contains configured native IDs and display names.
 The mixed router profile holds metadata and routing rules.
 The router does not import the catalog automatically.
 
-The configuration examples deliberately duplicate native IDs across these files.
-Inventory tests detect mismatches without a shared metadata schema.
+The configuration examples share native IDs across these files.
+A router ID can also contain a client-only context hint.
+Inventory tests compare the resulting API IDs without a shared metadata schema.
 The router's existing validator remains the owner of its full profile schema.
 
 ## Integration evidence

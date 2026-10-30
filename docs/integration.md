@@ -35,6 +35,12 @@ Replace those assumptions before automatic routing.
 The example disables activity/subagent routing and cache-cost assumptions.
 It does not disable upstream caches or remove cache markers.
 
+DeepSeek and GLM IDs include a `[1m]` client metadata hint.
+Claude Code 2.1.314 used that hint for a 1M context window and sent the bare ID over HTTP.
+Without the hint, that client assumed 200K for these third-party models.
+This observation does not prove successful inference with a full 1M-token history.
+The proxy catalog still contains only native IDs, without hints.
+
 ### Classifier configuration
 
 The example uses model-router's existing Ollama classifier.
@@ -175,7 +181,9 @@ It does not follow redirects or send OAuth.
 The temporary header file is removed on exit.
 
 Compare the mixed profile's `models.*.id` with the catalog's `data.*.id`.
-Make sure that every router ID exists in that catalog.
+For the `[1m]` metadata suffix, compare the bare native ID.
+Make sure that every resulting ID exists in that catalog.
+Do not add hints to the proxy catalog or expect the proxy to remove them.
 Extra catalog models do not create router routes.
 Catalog success does not prove provider access or OAuth compatibility.
 

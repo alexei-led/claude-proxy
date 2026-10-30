@@ -18,8 +18,9 @@ request and response stream.
 Choose models directly or use [claude-model-router](https://github.com/alexei-led/claude-router)
 with a mixed profile. The router chooses the model. The proxy transports the request.
 
-> **Experimental:** local tests use fake providers. Live OAuth, provider compatibility
-> and billing remain unverified. Start with non-sensitive data.
+> **Experimental:** see the scoped [live results](docs/verification.md#live-acceptance).
+> OAuth refresh, billing and untested provider combinations remain unverified.
+> Start with non-sensitive data.
 
 ## Explore
 

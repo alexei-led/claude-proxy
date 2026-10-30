@@ -49,6 +49,9 @@ func exampleConfig(t *testing.T, name string) fileConfig {
 	return config
 }
 
+// Claude Code consumes this metadata hint before HTTP; the proxy never removes it.
+func routerAPIModelID(id string) string { return strings.TrimSuffix(id, "[1m]") }
+
 func mixedProfile(t *testing.T) routerProfile {
 	t.Helper()
 	var profile routerProfile
@@ -117,11 +120,8 @@ func TestExampleConfigs(t *testing.T) {
 				secretOwners[path] = raw.Profile
 			}
 			for alias, entry := range profile.Models {
-				if _, ok := config.models[entry.ID]; !ok {
+				if _, ok := config.models[routerAPIModelID(entry.ID)]; !ok {
 					t.Fatalf("router model %s is absent from %s catalog", alias, name)
-				}
-				if strings.Contains(entry.ID, "[1m]") {
-					t.Fatal("examples must use exact native IDs without context hints")
 				}
 			}
 			for tier, route := range profile.Routes {
@@ -156,7 +156,7 @@ func TestExampleConfigs(t *testing.T) {
 				t.Fatal("catalog IDs differ from configured IDs")
 			}
 			for _, entry := range profile.Models {
-				if !slices.Contains(ids, entry.ID) {
+				if !slices.Contains(ids, routerAPIModelID(entry.ID)) {
 					t.Fatal("router ID is absent from the returned catalog")
 				}
 			}
