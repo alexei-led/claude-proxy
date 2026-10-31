@@ -1,33 +1,42 @@
 name: Release binaries
+
 on:
   push:
-    tags:
-      - v[0-9]*
+    tags: ["v[0-9]*"]
+
 permissions:
   contents: read
+
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
+
 jobs:
   binaries:
     name: Verify and build binaries
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Require committed release notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: test -s "docs/releases/$RELEASE_TAG.md"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: 1.27.3
+          go-version: "1.27.3"
           cache: false
-      - name: Lint (including tests)
+      - name: Install pinned linter
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
         with:
           version: v2.15.0
-      - name: Verify before releasing
+          install-only: true
+      - name: Project checks
         run: make check
       - name: Build macOS and Linux binaries
         env:
@@ -52,13 +61,14 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 7
+
   publish:
-    name: Publish binary release
+    name: Publish experimental prerelease
     needs: binaries
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write # Create the release and upload its verified binary assets.
+      contents: write # Create the prerelease and attach the verified binary assets.
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:

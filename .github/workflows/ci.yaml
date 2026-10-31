@@ -1,47 +1,40 @@
 name: CI
+
 on:
   push:
-    branches:
-      - main
-      - implement/**
-      - feature/**
-      - fix/**
+    branches: [main]
   pull_request:
+
 permissions:
   contents: read
+
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   check:
-    name: Verify Go contracts
-    runs-on: ubuntu-latest
+    name: Go checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: 1.27.3
+          go-version: "1.27.3"
           cache: false
-      - name: Formatting
-        run: test -z "$(gofmt -l cmd internal)"
-      - name: Lint (including tests)
+      - name: Install pinned linter
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
         with:
           version: v2.15.0
-      - name: Verify imports formatting
-        run: make fmt-check
-      - name: Vet
-        run: make vet
-      - name: Tests
-        run: make test
-      - name: Race tests
-        run: make race
-      - name: Build
-        run: make build
-      - name: Standard-library-only module
-        run: test "$(go list -m all)" = github.com/alexei-led/claude-proxy
+          install-only: true
+      - name: Project checks
+        run: make check
