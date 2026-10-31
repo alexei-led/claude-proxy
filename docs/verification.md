@@ -5,10 +5,13 @@ A passing fake-provider test does not prove a real provider or client combinatio
 
 ## Release readiness
 
-| Version | State | Scope |
+| Version | Notes | Scope |
 | --- | --- | --- |
-| `v0.1.0` | Published prerelease | Native proxy and initial public integration |
-| `v0.1.1` | Prepared, not published | Context-hint examples, scoped live evidence, documentation and workflow organization |
+| `v0.1.0` | [Release notes](releases/v0.1.0.md) | Native proxy and initial public integration |
+| `v0.1.1` | [Release notes](releases/v0.1.1.md) | Context-hint examples, scoped live evidence, documentation and workflow organization |
+
+[GitHub Releases](https://github.com/alexei-led/claude-proxy/releases) is the source of publication status.
+Committed notes alone do not prove that a release exists.
 
 The proxy runtime is unchanged between these versions.
 The corrected router examples can be used with the v0.1.0 binary.
@@ -31,7 +34,7 @@ Those runs do not validate the new v0.1.1 workflow changes.
 [PR #1](https://github.com/alexei-led/claude-proxy/pull/1) contains the v0.1.1 preparation.
 Its [first hosted run](https://github.com/alexei-led/claude-proxy/actions/runs/41214645286) passed on Linux and macOS.
 Later changes must keep the current PR checks green before merge.
-No v0.1.1 release workflow was triggered.
+Inspect the tagged release workflow and its downloaded assets before use.
 
 Release mechanics belong in [CONTRIBUTING](../CONTRIBUTING.md#ci-and-release).
 Remaining implementation work belongs in the [plan](plans/implement-claude-proxy.md).
