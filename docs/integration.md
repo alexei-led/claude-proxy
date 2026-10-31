@@ -10,16 +10,32 @@ Read [release readiness](verification.md#release-readiness) before a real sessio
 CAUTION: Authorize every destination before use.
 The selected provider receives the full unchanged conversation history.
 
-## 1. Prepare the client and examples
+## 1. Install the proxy and prepare the client
 
-Download the binary for your OS and architecture from the
-[release page](https://github.com/alexei-led/claude-proxy/releases).
-Compare its SHA-256 value with the matching entry in SHA256SUMS.
-Make the downloaded binary executable before use.
+Homebrew is the default installation method:
 
-The commands below use a source build at `bin/claude-proxy`.
-A downloaded binary can be substituted at those command paths.
-See [development](../CONTRIBUTING.md#build-and-tests) for source-build commands.
+```sh
+brew install alexei-led/tap/claude-proxy
+```
+
+If your Homebrew version requests third-party trust, trust only this formula:
+
+```sh
+brew tap alexei-led/tap
+brew trust --formula alexei-led/tap/claude-proxy
+brew install alexei-led/tap/claude-proxy
+```
+
+The trust command permits Homebrew to load this formula's Ruby code.
+Older Homebrew versions without that command do not need it.
+
+The formula installs a prebuilt macOS/Linux binary for ARM64 or AMD64.
+It creates no configuration, credentials, service or automatic startup.
+The commands below use `claude-proxy` from PATH.
+
+[Direct binaries](https://github.com/alexei-led/claude-proxy/releases) and
+[source builds](../CONTRIBUTING.md#build-and-tests) are alternatives.
+For a source build, use `bin/claude-proxy` at the command paths below.
 
 1. Install Claude Code through its public instructions.
 2. For automatic routing, install model-router through its public instructions.
@@ -104,7 +120,24 @@ Keep the listener loopback-only.
 
 ## 3. Prepare private configuration
 
-Run this copy operation from the project directory.
+Homebrew installs only the binary, not sample configuration.
+Fetch the public version-1 schema examples into a fresh directory:
+
+```sh
+examples_dir=$(mktemp -d "${TMPDIR:-/tmp}/claude-proxy-examples.XXXXXX")
+for file in personal.json work.json proxy-router.json; do
+  curl --fail --silent --show-error --location \
+    "https://raw.githubusercontent.com/alexei-led/claude-proxy/v0.1.1/examples/$file" \
+    --output "$examples_dir/$file"
+done
+```
+
+These examples are pinned to the validated v0.1.1 configuration schema.
+For a source checkout, use `examples_dir="$PWD/examples"` instead.
+Review the downloaded files before copying them into your private directory.
+
+Run this copy operation after selecting the profile.
+
 It stops if a destination exists, including a dangling symlink.
 
 ```bash
@@ -120,8 +153,8 @@ It stops if a destination exists, including a dangling symlink.
     printf 'Selected router profile already exists. Stop.\n' >&2
     exit 1
   fi
-  cp -n "examples/$proxy_profile.json" "$proxy_config"
-  cp -n examples/proxy-router.json "$claude_dir/proxy-router.json"
+  cp -n "$examples_dir/$proxy_profile.json" "$proxy_config"
+  cp -n "$examples_dir/proxy-router.json" "$claude_dir/proxy-router.json"
 )
 ```
 
@@ -152,8 +185,8 @@ It does not read Claude OAuth stores.
 Run these commands in the first terminal:
 
 ```sh
-bin/claude-proxy --config "$proxy_config" --check
-bin/claude-proxy --config "$proxy_config"
+claude-proxy --config "$proxy_config" --check
+claude-proxy --config "$proxy_config"
 ```
 
 The first command performs local validation only.

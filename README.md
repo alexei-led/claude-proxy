@@ -22,6 +22,19 @@ The proxy does not convert OpenAI APIs or repair incompatible conversation histo
 > **Experimental:** [scoped live results](docs/verification.md#live-acceptance) cover specific client/model combinations.
 > OAuth refresh, billing and untested provider combinations remain unverified.
 
+## Install
+
+```sh
+brew install alexei-led/tap/claude-proxy
+```
+
+Homebrew is the default install method. It installs only the binary.
+If Homebrew requests third-party trust, use the
+[formula-specific trust step](docs/integration.md#1-install-the-proxy-and-prepare-the-client).
+Configuration and startup remain manual.
+[Direct binaries](https://github.com/alexei-led/claude-proxy/releases) and
+[source builds](CONTRIBUTING.md#build-and-tests) remain available.
+
 ## Explore
 
 [User guide →](docs/integration.md) ·
@@ -30,5 +43,5 @@ The proxy does not convert OpenAI APIs or repair incompatible conversation histo
 [Tests and readiness](docs/verification.md)
 
 [Build and contribute](CONTRIBUTING.md) ·
-[Release notes](docs/releases/v0.1.1.md) ·
+[Release notes](docs/releases/v0.1.2.md) ·
 [MIT license](LICENSE)

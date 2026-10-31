@@ -43,7 +43,11 @@ func snippetFixture(t *testing.T, profile string) (string, *os.Root, []string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = root.Close() })
-	environment := []string{"PATH=/usr/bin:/bin", "HOME=" + base, "XDG_CONFIG_HOME=" + base, "CLAUDE_CONFIG_DIR=" + filepath.Join(base, "claude-"+profile), "proxy_profile=" + profile, "TMPDIR=" + dir}
+	examples, err := filepath.Abs(filepath.Join("..", "..", "examples"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	environment := []string{"PATH=/usr/bin:/bin", "HOME=" + base, "XDG_CONFIG_HOME=" + base, "CLAUDE_CONFIG_DIR=" + filepath.Join(base, "claude-"+profile), "proxy_profile=" + profile, "TMPDIR=" + dir, "examples_dir=" + examples}
 	return dir, root, environment
 }
 
@@ -128,7 +132,7 @@ func TestDocumentedSetup(t *testing.T) {
 		existingSymlink = "symlink"
 	)
 	selection := documentedBash(t, `case "$proxy_profile"`)
-	script := documentedBash(t, `cp -n "examples/$proxy_profile.json"`)
+	script := documentedBash(t, `cp -n "$examples_dir/$proxy_profile.json"`)
 	for _, profile := range []string{personalProfile, workProfile} {
 		for _, existing := range []string{existingAbsent, existingConfig, existingRouter, existingSymlink} {
 			t.Run(profile+"/"+existing, func(t *testing.T) {
