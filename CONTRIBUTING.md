@@ -82,28 +82,47 @@ They do not modify or stage files.
 
 ## CI and release
 
-CI runs formatting, lint, vet, unit tests, race tests and a build.
-The tag workflow repeats those gates before it builds release assets.
-Targets are macOS/Linux on amd64/arm64.
-Assets contain binaries, LICENSE and SHA256SUMS.
+PR and main-branch CI run on Linux and macOS.
+Both CI and release use `make check` as the shared quality gate.
+The lint action installs the pinned binary without a separate lint run.
+`make check` performs schema validation, lint, formatting, vet, tests, race tests,
+build and the standard-library module check.
 
-A first public version must be an experimental prerelease, not a stable release.
-The publish command uses `--prerelease --latest=false`.
-Release notes come from the committed `docs/releases/<tag>.md` file.
-See [readiness](docs/verification.md#release-readiness) for open gates.
-Publication requires explicit repository and tag approval.
+The release workflow starts only from a version tag.
+It first requires nonempty committed notes at `docs/releases/<tag>.md`.
+It then runs the same checks on Linux and cross-builds macOS/Linux for amd64/arm64.
+The build job has read-only repository access.
+Only the publication job receives write access.
+
+Assets contain four binaries, LICENSE and SHA256SUMS.
+The publication job verifies checksums and uses the committed notes as its release body.
+It publishes with `--prerelease --latest=false`.
+No Docker image, package registry or Homebrew tap is involved.
+
+Before a release:
+
+1. Add and review `docs/releases/<tag>.md`.
+2. Merge the reviewed change only after PR CI succeeds.
+3. Obtain explicit repository and tag publication approval.
+4. Create the tag on that reviewed commit.
+5. Inspect the workflow result and download the assets for checksum validation.
+
+Do not create a tag merely to test this procedure.
+The tag triggers external publication after the build gates pass.
 Release approval does not authorize a live provider call.
+Current evidence and open gates belong in [verification](docs/verification.md#release-readiness).
 
 ## Documentation
 
 | File                                   | Owns                                             |
 | -------------------------------------- | ------------------------------------------------ |
-| `README.md`                            | Purpose, problem and visual overview             |
-| `docs/integration.md`                  | User procedure and rollback                      |
+| `README.md`                            | Front page: purpose, problem and visual overview |
+| `docs/integration.md`                  | User guide: setup and rollback |
 | `docs/configuration.md`                | Schema, authentication, HTTP behavior and limits |
 | `docs/design.md`                       | Boundaries and design constraints                |
 | `docs/verification.md`                 | Test evidence, gaps and readiness                |
-| `docs/plans/implement-claude-proxy.md` | Remaining implementation work                    |
+| `docs/plans/implement-claude-proxy.md` | Remaining implementation work |
+| `docs/releases/<tag>.md` | Canonical notes for each release |
 
 Use short STE sentences in technical documents.
 Keep commands, identifiers and quoted output unchanged.

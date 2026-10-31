@@ -5,25 +5,33 @@ A passing fake-provider test does not prove a real provider or client combinatio
 
 ## Release readiness
 
-**Local, controlled experiments:** appropriate after the local checks pass.
-Use non-sensitive synthetic data and explicitly approved destinations.
+| Version | State | Scope |
+| --- | --- | --- |
+| `v0.1.0` | Published prerelease | Native proxy and initial public integration |
+| `v0.1.1` | Prepared, not published | Context-hint examples, scoped live evidence, documentation and workflow organization |
 
-**Experimental publication:** `v0.1.0` uses GitHub's prerelease state.
-Its purpose is controlled experimentation and CI/release pipeline validation.
-It is not evidence of actual provider compatibility.
+The proxy runtime is unchanged between these versions.
+The corrected router examples can be used with the v0.1.0 binary.
+Release preparation does not authorize a tag or external publication.
+
+**Controlled experiments:** supported by the exact local and live cases recorded here.
+Use non-sensitive data and explicitly approved destinations.
 
 **Stable release:** not ready.
-Provider compatibility, account identity, billing and broader reliability evidence remain incomplete.
+OAuth refresh, billing and wider provider/history compatibility remain open.
 
-The release workflow runs the local gates again before publication.
-It uses committed notes and explicit `--prerelease --latest=false` flags.
-Hosted results are recorded in the
-[CI runs](https://github.com/alexei-led/claude-proxy/actions/workflows/ci.yaml)
-and [release runs](https://github.com/alexei-led/claude-proxy/actions/workflows/release.yaml).
+The v0.1.0 hosted runs passed on commit `5127d7f`:
 
-A release does not satisfy the unrun live gates.
-Use only non-sensitive data until each account/provider combination passes approved acceptance.
-A later stable release needs hosted CI, real OAuth/provider evidence and binary inspection.
+- [CI](https://github.com/alexei-led/claude-proxy/actions/runs/40938191741)
+- [Release and publication](https://github.com/alexei-led/claude-proxy/actions/runs/40938511617)
+
+The downloaded assets passed checksum, format and tagged-source identity checks.
+The macOS ARM64 binary passed check mode with dummy files.
+Those runs do not validate the new v0.1.1 workflow changes.
+The new PR must pass its own Linux/macOS checks before merge.
+
+Release mechanics belong in [CONTRIBUTING](../CONTRIBUTING.md#ci-and-release).
+Remaining implementation work belongs in the [plan](plans/implement-claude-proxy.md).
 
 ## Local environment
 
@@ -118,8 +126,10 @@ The results describe the tested credentials and models, not universal provider s
 | `kimi-k2.7-code` | Native SSE, Claude Code replies and Read-tool completion worked |
 | `MiniMax-M3` | The tested key returned 401, `token is unusable`, directly and through the proxy |
 
-No proxy authentication fix was needed for the MiniMax result.
-The ready experimental configuration excludes that unusable credential.
+No proxy authentication fix was needed for that historical MiniMax result.
+A later replacement key was reported to work in direct Claude Code.
+It was not retested through the proxy.
+The old failure must not be treated as a diagnosis of the replacement key.
 
 ### Routing and history
 
@@ -137,7 +147,9 @@ It did not reorder or remove content to force compatibility.
 Explicit `thinking: disabled` requests were also rejected by GLM or Kimi in tested cases.
 Normal Claude Code sessions still completed through those providers.
 Provider parameter subsets and history ordering remain real compatibility limits.
-The ready automatic profile uses the tested DeepSeek/GLM pair.
+The temporary acceptance profile used only the tested DeepSeek/GLM pair for automatic routing.
+That private profile was removed after testing.
+It is not the checked-in router example, which also includes Claude and a local model.
 
 ### Client behavior
 
@@ -167,12 +179,16 @@ They remained unchanged.
 The operator used new private, opt-in files and a manual foreground process.
 No work-account acceptance, logout or managed-policy edit was performed.
 OAuth expiry and refresh were not forced or certified.
+The manual proxy was stopped after acceptance.
+Temporary key copies, token files, profiles, launchers and probe artifacts were removed.
+No running or ready-to-use private setup is included in this repository.
 
 ## Unrun acceptance
 
-These checks require separate approval or an executable hosted pipeline:
+These cases remain outside the recorded acceptance:
 
-- Hosted run outcomes are tracked by the workflow links in the readiness section.
+- Hosted PR CI for the v0.1.1 changes, followed by a separately approved release run.
+- MiniMax proxy acceptance with the replacement key.
 - Expired OAuth refresh and exhausted-account recovery. Initial OAuth/custom-header coexistence passed the scoped live check.
 - Company TLS trust, proxy headers and account identity.
 - Provider combinations and features beyond the exact live cases recorded above.
@@ -193,4 +209,5 @@ Formal ASD-STE100 compliance is not certified without the official dictionary an
 
 The README uses a hand-authored SVG with light and dark theme rules.
 Local raster previews permit layout inspection.
-GitHub page rendering needs a final inspection after source publication.
+Diagram source and local previews support layout inspection.
+The PR preview remains the final check for GitHub page layout.
