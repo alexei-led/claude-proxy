@@ -107,6 +107,9 @@ Inspect both workflow results before claiming Homebrew availability.
 
 Homebrew is the default installation path.
 The formula installs only the prebuilt binary and has no service definition.
+The shared tap updater requires an explicit formula version.
+Strict Homebrew audit can report that version as redundant with the URL.
+Keep this finding visible until the shared updater supports another formula shape.
 No Docker image or package registry is involved.
 
 Before a release:
