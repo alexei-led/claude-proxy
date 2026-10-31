@@ -123,13 +123,16 @@ Keep the listener loopback-only.
 Homebrew installs only the binary, not sample configuration.
 Fetch the public version-1 schema examples into a fresh directory:
 
-```sh
+```bash
 examples_dir=$(mktemp -d "${TMPDIR:-/tmp}/claude-proxy-examples.XXXXXX")
-for file in personal.json work.json proxy-router.json; do
-  curl --fail --silent --show-error --location \
-    "https://raw.githubusercontent.com/alexei-led/claude-proxy/v0.1.1/examples/$file" \
-    --output "$examples_dir/$file"
-done
+(
+  set -eu
+  for file in personal.json work.json proxy-router.json; do
+    curl --fail --silent --show-error --location \
+      "https://raw.githubusercontent.com/alexei-led/claude-proxy/v0.1.1/examples/$file" \
+      --output "$examples_dir/$file"
+  done
+)
 ```
 
 These examples are pinned to the validated v0.1.1 configuration schema.
