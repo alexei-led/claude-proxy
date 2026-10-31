@@ -14,6 +14,7 @@ fmt-check: lint-version
 	@diff="$$(golangci-lint fmt --diff ./...)" && test -z "$$diff" || { printf '%s\n' "$$diff"; exit 1; }
 
 lint: lint-version
+	golangci-lint config verify
 	golangci-lint run ./...
 
 vet:
@@ -30,3 +31,4 @@ build:
 	CGO_ENABLED=0 go build -trimpath -o bin/claude-proxy ./cmd/claude-proxy
 
 check: fmt-check lint vet test race build
+	test "$$(go list -m all)" = github.com/alexei-led/claude-proxy

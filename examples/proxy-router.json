@@ -12,7 +12,7 @@
       "imageInput": false
     },
     "glm": {
-      "id": "glm-5.3-flash",
+      "id": "glm-5.3-flash[1m]",
       "input": 0.15,
       "output": 0.5,
       "cacheRead": 0.03,
@@ -23,7 +23,7 @@
       "imageInput": true
     },
     "deepseek": {
-      "id": "deepseek-flash",
+      "id": "deepseek-flash[1m]",
       "input": 0.3,
       "output": 1.2,
       "cacheRead": 0.006,

@@ -1,7 +1,10 @@
-# Configure Claude Code and model-router
+# User guide
 
-Use this procedure for a manually started local proxy.
+Configure Claude Code with a manually started local proxy.
+This recipe also prepares an optional mixed model-router profile.
+The proxy does not require the Mod for direct native model selection.
 No extra launcher is required.
+
 Read [release readiness](verification.md#release-readiness) before a real session.
 
 CAUTION: Authorize every destination before use.
@@ -9,8 +12,17 @@ The selected provider receives the full unchanged conversation history.
 
 ## 1. Prepare the client and examples
 
-1. Build `bin/claude-proxy` with the [development procedure](../CONTRIBUTING.md#build-and-tests).
-2. Install Claude Code and model-router through their public instructions.
+Download the binary for your OS and architecture from the
+[release page](https://github.com/alexei-led/claude-proxy/releases).
+Compare its SHA-256 value with the matching entry in SHA256SUMS.
+Make the downloaded binary executable before use.
+
+The commands below use a source build at `bin/claude-proxy`.
+A downloaded binary can be substituted at those command paths.
+See [development](../CONTRIBUTING.md#build-and-tests) for source-build commands.
+
+1. Install Claude Code through its public instructions.
+2. For automatic routing, install model-router through its public instructions.
 3. Select the account's existing Claude Code configuration directory.
 4. Keep its saved OAuth login unchanged.
 5. Use native Anthropic mode.
@@ -35,8 +47,15 @@ Replace those assumptions before automatic routing.
 The example disables activity/subagent routing and cache-cost assumptions.
 It does not disable upstream caches or remove cache markers.
 
-### Classifier configuration
+DeepSeek and GLM IDs include a `[1m]` client metadata hint.
+Claude Code 2.1.314 used that hint for a 1M context window and sent the bare ID over HTTP.
+Without the hint, that client assumed 200K for these third-party models.
+This observation does not prove successful inference with a full 1M-token history.
+The proxy catalog still contains only native IDs, without hints.
 
+### Optional classifier configuration
+
+This section applies only to automatic model-router routing.
 The example uses model-router's existing Ollama classifier.
 Its preset uses `http://127.0.0.1:11434/api/chat` and `qwen3.5:9b`.
 The execution model `qwen3-coder:30b` is separate.
@@ -175,7 +194,9 @@ It does not follow redirects or send OAuth.
 The temporary header file is removed on exit.
 
 Compare the mixed profile's `models.*.id` with the catalog's `data.*.id`.
-Make sure that every router ID exists in that catalog.
+For the `[1m]` metadata suffix, compare the bare native ID.
+Make sure that every resulting ID exists in that catalog.
+Do not add hints to the proxy catalog or expect the proxy to remove them.
 Extra catalog models do not create router routes.
 Catalog success does not prove provider access or OAuth compatibility.
 
@@ -187,6 +208,8 @@ If `CLAUDE_CONFIG_DIR` is unset, the directory is `~/.claude`.
 It is not a file path.
 The default provider uses `router.json`.
 Unknown provider names need a complete profile and do not select the default.
+Without the Mod installed, `CLAUDE_ROUTER_PROVIDER` has no effect.
+Select a configured native ID directly in that case.
 
 CAUTION: Do not put the local token in `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`.
 Those variables can replace subscription authentication.

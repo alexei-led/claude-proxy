@@ -1,92 +1,58 @@
-# Implementation plan
+# Remaining work
 
-This plan records remaining work.
-The [architecture](../design.md) defines boundaries and risks.
-The [verification report](../verification.md) owns test evidence and release gates.
+This plan lists implementation and acceptance gaps.
+The [verification report](../verification.md) owns evidence and release status.
+The [architecture](../design.md) owns boundaries and risks.
+[CONTRIBUTING](../../CONTRIBUTING.md#ci-and-release) owns the release procedure.
 
-## Status
+## Completed scope
 
-| Stage | Task                                           | Status                                  |
-| ----- | ---------------------------------------------- | --------------------------------------- |
-| 1     | 1: strict configuration and authentication     | Implemented                             |
-| 1     | 2: native HTTP relay and complete catalog      | Implemented                             |
-| 2     | 3: public Claude Code/model-router integration | Examples and offline checks implemented |
-| 3     | 4: broader reliability, fitness and benchmarks | Pending                                 |
-| 4     | 5: final acceptance and release preparation    | Pending                                 |
+- Strict configuration, private-file rules and authentication.
+- Native HTTP forwarding, streaming and a complete local catalog.
+- Public Claude Code setup and mixed model-router examples.
+- Scoped live acceptance and client context-hint corrections.
 
-Tasks 1–3 do not establish live provider support.
-Publication requires separate authorization.
-The current authorization covers the initial main bootstrap and the `v0.1.0` prerelease, not live provider calls.
+These results do not establish universal provider compatibility.
+Temporary live-test configuration and credentials were removed after acceptance.
+A fresh setup uses the checked-in examples and the user guide.
 
-## Task 4: Reliability and performance
+## Reliability and performance
 
 Contracts: D1/D3/D7/D8, C1–C4, T4–T10/F1–F2.
 
-Existing tests already cover many resource and transport cases.
-Extend them only where a required behavior lacks evidence.
+Existing tests cover basic overload, cancellation, slot release and bounded shutdown.
+Remaining work must extend that evidence, not duplicate the same cases.
 
-- [ ] Map test gaps before adding cases.
 - [ ] Exercise growing histories across multiple providers.
 - [ ] Exercise simultaneous long streams in separate profiles.
-- [ ] Repeat cancellation, slot release and bounded shutdown cases.
-- [ ] Add architecture checks for standard-library dependencies and forbidden side effects.
-- [ ] Measure direct versus relayed requests with 8 KiB, 1 MiB and near-limit bodies.
+- [ ] Add dedicated architecture checks for dependencies and forbidden side effects.
+- [ ] Measure direct and relayed requests with 8 KiB, 1 MiB and near-limit bodies.
 - [ ] Measure concurrency levels 1 and 8.
 - [ ] Record latency, allocations, retained memory and chunk timing in the verification report.
 
-Benchmarks use fake providers.
-Report proxy overhead separately from provider latency.
-Do not add dependencies or weaken safety limits for an unmeasured speed target.
+Use fake providers for benchmarks.
+Separate proxy overhead from provider latency.
+Do not weaken safety limits to meet an unmeasured speed target.
 
-## Task 5: Final acceptance
+## Broader live acceptance
 
-Contracts: T1–T11/F1–F2 and R1–R8.
+Contracts: T11 and R1–R8.
 
-- [ ] Run the [development checks](../../CONTRIBUTING.md#build-and-tests).
-- [ ] Run hosted CI on the reviewed commit.
-- [ ] Make sure that the external router source remains unchanged.
-- [ ] Obtain approval for each live account, destination, data set and cost.
-- [ ] Run personal subscription OAuth and refresh acceptance.
-- [ ] Run company OAuth, headers and TLS acceptance separately.
-- [ ] Run approved mixed-provider sessions with actual router decisions.
-- [ ] Exercise tools, thinking, history, effort, subagents and context hints.
-- [ ] Record actual model identity and billing behavior.
-- [ ] Exercise discovery limits without model renaming or replacement credentials.
-- [ ] Stop the proxy and make sure that opted-in requests fail without fallback.
-- [ ] Restore the original client connection configuration and router profile.
-- [ ] Record every unrun case and exclude unsupported combinations.
+The exact completed cases belong in the verification report.
+The following gaps remain:
 
-A live failure does not permit body translation, credential substitution or fallback.
-Define separate work if the current protocol cannot support the required behavior.
+- [ ] Retest MiniMax through the proxy with a valid replacement credential.
+- [ ] Exercise expired OAuth refresh and exhausted-account recovery.
+- [ ] Exercise approved company OAuth, headers, TLS and account identity.
+- [ ] Exercise subagents across providers.
+- [ ] Exercise native picker discovery and custom-header-only behavior.
+- [ ] Exercise full-window requests and untested tool/thinking-history combinations.
+- [ ] Compare actual provider usage and bills with client/router estimates.
+- [ ] Run local-model inference and non-host release binaries.
 
-## First experimental release
+Obtain separate approval for each live account, destination, data set and cost.
+No plan item authorizes credential access, provider spending or publication.
 
-- [x] Resolve security findings and run their regression tests.
-- [ ] Create reviewed commits only after authorization.
-- [ ] Complete the non-default-branch review and merge process.
-- [ ] Pass hosted CI on the release commit.
-- [ ] Complete the minimum live acceptance in the verification report.
-- [x] Set explicit prerelease publication for experimental tags.
-- [ ] Inspect the four binary assets, license and checksums.
-- [x] Obtain explicit publication approval for `v0.1.0` as a prerelease.
-
-Use an experimental prerelease label for the first public version.
-Do not mark a version stable while required live gates remain open.
-The current recommendation is in [release readiness](../verification.md#release-readiness).
-
-## Working rules
-
-Use a non-default branch and a worktree when a committed base exists.
-Preserve unrelated edits.
-Do not create a commit solely to provide a worktree base without authorization.
-
-Automated tests use synthetic history, local fake providers and dummy credentials.
-They do not read saved OAuth stores or probe real providers.
-Live acceptance remains an explicit, separate operation.
-
-There is no valid GitNexus index for the current code.
-Use source reads and tests for evidence.
-Ordinary Git diffs do not include untracked files.
-
-Keep original user profiles and managed configuration unchanged.
-The [integration guide](../integration.md#stop-and-rollback) owns the rollback procedure.
+A provider error is not permission to translate bodies, substitute credentials or add fallback.
+If reliable operation needs router source changes, define separate work.
+Use the [user guide](../integration.md#stop-and-rollback) for rollback.

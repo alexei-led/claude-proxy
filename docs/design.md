@@ -27,6 +27,26 @@ The proxy has no classifier, database, cache store, dashboard or provider SDK.
 It does not manage OAuth login, refresh or account rotation.
 It does not execute tools or add missing provider capabilities.
 
+## Request flow
+
+```mermaid
+sequenceDiagram
+    participant C as Claude Code
+    participant P as Local proxy
+    participant U as Upstream
+    C->>P: POST /v1/messages<br/>Local key
+    P->>U: Original body and route credentials
+    U-->>P: Native status and headers<br/>Response stream
+    P-->>C: Same status/body, safe headers
+```
+
+This diagram shows successful Messages forwarding.
+The proxy authenticates the request, resolves the exact model ID and adds route credentials.
+Catalog requests stay local.
+The local key never reaches the upstream.
+The [authentication reference](configuration.md#authentication) defines credential filtering.
+Cancellation and broken-stream behavior are defined by boundary C3.
+
 ## Components
 
 | Component                                 | Responsibility                                                    |
@@ -86,8 +106,9 @@ The catalog contains configured native IDs and display names.
 The mixed router profile holds metadata and routing rules.
 The router does not import the catalog automatically.
 
-The configuration examples deliberately duplicate native IDs across these files.
-Inventory tests detect mismatches without a shared metadata schema.
+The configuration examples share native IDs across these files.
+A router ID can also contain a client-only context hint.
+Inventory tests compare the resulting API IDs without a shared metadata schema.
 The router's existing validator remains the owner of its full profile schema.
 
 ## Integration evidence
