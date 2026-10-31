@@ -28,7 +28,10 @@ The v0.1.0 hosted runs passed on commit `5127d7f`:
 The downloaded assets passed checksum, format and tagged-source identity checks.
 The macOS ARM64 binary passed check mode with dummy files.
 Those runs do not validate the new v0.1.1 workflow changes.
-The new PR must pass its own Linux/macOS checks before merge.
+[PR #1](https://github.com/alexei-led/claude-proxy/pull/1) contains the v0.1.1 preparation.
+Its [first hosted run](https://github.com/alexei-led/claude-proxy/actions/runs/41214645286) passed on Linux and macOS.
+Later changes must keep the current PR checks green before merge.
+No v0.1.1 release workflow was triggered.
 
 Release mechanics belong in [CONTRIBUTING](../CONTRIBUTING.md#ci-and-release).
 Remaining implementation work belongs in the [plan](plans/implement-claude-proxy.md).
@@ -207,7 +210,6 @@ Risks are defined in the [architecture](design.md#risks).
 Technical prose uses short STE sentences and stable technical terms.
 Formal ASD-STE100 compliance is not certified without the official dictionary and a full review.
 
-The README uses a hand-authored SVG with light and dark theme rules.
-Local raster previews permit layout inspection.
-Diagram source and local previews support layout inspection.
+The README SVG was rendered and inspected in light and dark themes.
+The architecture sequence diagram was rendered and inspected locally.
 The PR preview remains the final check for GitHub page layout.

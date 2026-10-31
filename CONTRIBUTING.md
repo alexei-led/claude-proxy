@@ -109,6 +109,8 @@ Before a release:
 
 Do not create a tag merely to test this procedure.
 The tag triggers external publication after the build gates pass.
+Tag creation is the maintainer approval step.
+No protected environment or second manual workflow approval is configured.
 Release approval does not authorize a live provider call.
 Current evidence and open gates belong in [verification](docs/verification.md#release-readiness).
 
