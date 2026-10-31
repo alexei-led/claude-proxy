@@ -97,7 +97,17 @@ Only the publication job receives write access.
 Assets contain four binaries, LICENSE and SHA256SUMS.
 The publication job verifies checksums and uses the committed notes as its release body.
 It publishes with `--prerelease --latest=false`.
-No Docker image, package registry or Homebrew tap is involved.
+After publication, a separate read-only job dispatches the exact version to
+`alexei-led/homebrew-tap` with repository secret `TAP_GITHUB_TOKEN`.
+The shared tap workflow calculates hashes from the published assets and updates the formula.
+Scope that token to the tap with the permissions required for repository dispatch.
+It is never used by PR checks or stored in source.
+A successful dispatch is not proof that the downstream tap update completed.
+Inspect both workflow results before claiming Homebrew availability.
+
+Homebrew is the default installation path.
+The formula installs only the prebuilt binary and has no service definition.
+No Docker image or package registry is involved.
 
 Before a release:
 

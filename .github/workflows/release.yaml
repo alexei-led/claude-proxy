@@ -86,3 +86,30 @@ jobs:
           gh release create "$RELEASE_TAG" dist/claude-proxy_* dist/LICENSE dist/SHA256SUMS \
             --verify-tag --title "$RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md \
             --prerelease --latest=false
+
+  update-homebrew:
+    name: Update Homebrew formula
+    environment: homebrew
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Dispatch versioned formula update
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$GH_TOKEN" ]]; then
+            printf '%s\n' 'TAP_GITHUB_TOKEN is required for the Homebrew tap update.' >&2
+            exit 1
+          fi
+          jq --null-input \
+            --arg formula 'claude-proxy' \
+            --arg version "${RELEASE_TAG#v}" \
+            --arg repo 'alexei-led/claude-proxy' \
+            '{event_type: "update-formula", client_payload: {formula: $formula, version: $version, repo: $repo}}' |
+            gh api --method POST 'repos/alexei-led/homebrew-tap/dispatches' --input -
