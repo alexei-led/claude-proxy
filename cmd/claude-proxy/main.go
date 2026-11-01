@@ -26,6 +26,9 @@ func main() {
 }
 
 func run(ctx context.Context, args []string, logger *slog.Logger) error {
+	if len(args) > 0 && args[0] == "connect" {
+		return connect(ctx, args[1:])
+	}
 	flags := flag.NewFlagSet("claude-proxy", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	path := flags.String("config", "", "configuration file")

@@ -69,27 +69,9 @@ func (c *Config) Listen() string { return c.listen }
 // LoadConfig validates and snapshots one profile without network access.
 // Errors deliberately omit paths, supplied values and secret contents.
 func LoadConfig(path string) (*Config, error) {
-	body, err := readPrivate(path, false, maxConfigBytes)
+	raw, err := readConfig(path)
 	if err != nil {
-		return nil, errors.New("configuration file is unavailable or unsafe")
-	}
-	if err = validateConfigJSON(body); err != nil {
 		return nil, err
-	}
-	var raw fileConfig
-	if err = json.Unmarshal(body, &raw); err != nil {
-		return nil, errors.New("invalid configuration schema")
-	}
-	if raw.Version != 1 || (raw.Profile != personalProfile && raw.Profile != workProfile) {
-		return nil, errors.New("unsupported configuration version or profile")
-	}
-	host, port, err := net.SplitHostPort(raw.Listen)
-	number, portErr := strconv.Atoi(port)
-	if err != nil || portErr != nil || host != "127.0.0.1" || number < 1 || number > 65535 || strconv.Itoa(number) != port {
-		return nil, errors.New("listener must be 127.0.0.1 with an explicit nonzero port")
-	}
-	if raw.AccessTokenFile == "" || len(raw.Models) == 0 || len(raw.Upstreams) == 0 {
-		return nil, errors.New("configuration requires an access token, upstreams and models")
 	}
 	token, err := loadSecret(path, raw.AccessTokenFile)
 	if err != nil {
@@ -139,6 +121,32 @@ func LoadConfig(path string) (*Config, error) {
 		config.models[id] = model{upstream: route, label: entry.Upstream, displayName: entry.DisplayName}
 	}
 	return config, nil
+}
+
+func readConfig(path string) (fileConfig, error) {
+	body, err := readPrivate(path, false, maxConfigBytes)
+	if err != nil {
+		return fileConfig{}, errors.New("configuration file is unavailable or unsafe")
+	}
+	if err = validateConfigJSON(body); err != nil {
+		return fileConfig{}, err
+	}
+	var raw fileConfig
+	if err = json.Unmarshal(body, &raw); err != nil {
+		return fileConfig{}, errors.New("invalid configuration schema")
+	}
+	if raw.Version != 1 || (raw.Profile != personalProfile && raw.Profile != workProfile) {
+		return fileConfig{}, errors.New("unsupported configuration version or profile")
+	}
+	host, port, err := net.SplitHostPort(raw.Listen)
+	number, portErr := strconv.Atoi(port)
+	if err != nil || portErr != nil || host != "127.0.0.1" || number < 1 || number > 65535 || strconv.Itoa(number) != port {
+		return fileConfig{}, errors.New("listener must be 127.0.0.1 with an explicit nonzero port")
+	}
+	if raw.AccessTokenFile == "" || len(raw.Models) == 0 || len(raw.Upstreams) == 0 {
+		return fileConfig{}, errors.New("configuration requires an access token, upstreams and models")
+	}
+	return raw, nil
 }
 
 func safeLabel(value string) bool {

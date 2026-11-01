@@ -49,21 +49,21 @@ For a source build, use `bin/claude-proxy` at the command paths below.
 | -------------------------------------------------- | --------------------------------------------------------------- |
 | [personal.json](../examples/personal.json)         | Direct Anthropic subscription and separately declared providers |
 | [work.json](../examples/work.json)                 | Company endpoint placeholder and independent provider keys      |
-| [proxy-router.json](../examples/proxy-router.json) | Four native models and explicit tier routes                     |
+| [model-proxy-router.json](../examples/model-proxy-router.json) | Two native models and explicit tier routes                     |
 
 Make sure that every endpoint and model ID matches an authorized destination.
 The company hostname is an unresolvable placeholder.
 Remove unauthorized destinations from both the proxy and mixed router profile.
 
-Hosted metadata comes from the inspected router presets, not fresh provider measurements.
-The local model assumes text-only input, a 32K context window and no per-token charge.
-The strengths and tier assignments are examples, not benchmark results.
-Replace those assumptions before automatic routing.
+Hosted metadata comes from inspected router presets, not fresh provider measurements.
+The example uses DeepSeek Flash at low/high effort and Opus at xhigh.
+The strengths and tier assignments are starting policies, not benchmark results.
+DeepSeek prices are peak API rates; subscription estimates are not cash charges.
 
 The example disables activity/subagent routing and cache-cost assumptions.
 It does not disable upstream caches or remove cache markers.
 
-DeepSeek and GLM IDs include a `[1m]` client metadata hint.
+The DeepSeek ID includes a `[1m]` client metadata hint.
 Claude Code 2.1.314 used that hint for a 1M context window and sent the bare ID over HTTP.
 Without the hint, that client assumed 200K for these third-party models.
 This observation does not prove successful inference with a full 1M-token history.
@@ -72,12 +72,9 @@ The proxy catalog still contains only native IDs, without hints.
 ### Optional classifier configuration
 
 This section applies only to automatic model-router routing.
-The example uses model-router's existing Ollama classifier.
-Its preset uses `http://127.0.0.1:11434/api/chat` and `qwen3.5:9b`.
-The execution model `qwen3-coder:30b` is separate.
-
-Prepare that classifier yourself or select another supported classifier in model-router.
-Remote classifier credentials remain in the router's plugin options.
+The example retains model-router's default Jev classifier. Configure its existing plugin key before automatic routing, or select another classifier explicitly in this profile.
+Classifier overrides in another router profile do not carry over.
+No local classifier server is required. If you choose Ollama yourself, prepare its server and model separately.
 The proxy handles neither classifier requests nor classifier credentials.
 
 ## 2. Select the profile
@@ -127,15 +124,15 @@ Fetch the public version-1 schema examples into a fresh directory:
 examples_dir=$(mktemp -d "${TMPDIR:-/tmp}/claude-proxy-examples.XXXXXX")
 (
   set -eu
-  for file in personal.json work.json proxy-router.json; do
+  for file in personal.json work.json model-proxy-router.json; do
     curl --fail --silent --show-error --location \
-      "https://raw.githubusercontent.com/alexei-led/claude-proxy/v0.1.1/examples/$file" \
+      "https://raw.githubusercontent.com/alexei-led/claude-proxy/v0.1.3/examples/$file" \
       --output "$examples_dir/$file"
   done
 )
 ```
 
-These examples are pinned to the validated v0.1.1 configuration schema.
+These examples are pinned to the v0.1.3 two-provider examples.
 For a source checkout, use `examples_dir="$PWD/examples"` instead.
 Review the downloaded files before copying them into your private directory.
 
@@ -152,12 +149,12 @@ It stops if a destination exists, including a dangling symlink.
     printf 'Selected proxy configuration already exists. Stop.\n' >&2
     exit 1
   fi
-  if test -e "$claude_dir/proxy-router.json" || test -L "$claude_dir/proxy-router.json"; then
+  if test -e "$claude_dir/model-proxy-router.json" || test -L "$claude_dir/model-proxy-router.json"; then
     printf 'Selected router profile already exists. Stop.\n' >&2
     exit 1
   fi
   cp -n "$examples_dir/$proxy_profile.json" "$proxy_config"
-  cp -n "$examples_dir/proxy-router.json" "$claude_dir/proxy-router.json"
+  cp -n "$examples_dir/model-proxy-router.json" "$claude_dir/model-proxy-router.json"
 )
 ```
 
@@ -238,8 +235,29 @@ Catalog success does not prove provider access or OAuth compatibility.
 
 ## 6. Start the opted-in session
 
-Use `CLAUDE_ROUTER_PROVIDER=proxy`.
-This identifier selects `proxy-router.json` inside `CLAUDE_CONFIG_DIR`.
+The simplest launch uses the same binary from another terminal:
+
+```sh
+claude-proxy connect --config "$proxy_config" -- claude --model 'deepseek-flash[1m]'
+```
+
+`connect` reads the selected configuration and local token, not provider key files.
+It checks the local catalog without sending OAuth or contacting upstreams.
+It sets the URL, local header and `CLAUDE_ROUTER_PROVIDER=model-proxy` only for the child.
+It replaces its process with the explicit command, preserving terminal signals and exit status.
+It neither starts the server nor changes login or configuration files.
+
+Remove conflicting base URLs, cloud-backend flags, explicit OAuth-token overrides and reserved custom headers first.
+Direct API-key environment overrides are removed only from the child.
+The helper rejects connection/profile and API-key-helper overrides found in explicit `--settings` arguments.
+File checks are a startup diagnostic, not a sandbox against another same-user writer changing the file later.
+Resolve user, project and managed overrides yourself; the helper does not bypass policy or certify the client's effective settings.
+Confirm the actual route during acceptance.
+
+For manual process-local setup without the helper:
+
+Use `CLAUDE_ROUTER_PROVIDER=model-proxy`.
+This identifier selects `model-proxy-router.json` inside `CLAUDE_CONFIG_DIR`.
 If `CLAUDE_CONFIG_DIR` is unset, the directory is `~/.claude`.
 It is not a file path.
 The default provider uses `router.json`.
@@ -268,8 +286,8 @@ Run the session only after account and destination approval:
   unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
   export ANTHROPIC_BASE_URL="$proxy_base_url"
   export ANTHROPIC_CUSTOM_HEADERS="${headers:+$headers$'\n'}X-Claude-Proxy-Key: $token"
-  export CLAUDE_ROUTER_PROVIDER=proxy
-  claude --model claude-opus-5-5
+  export CLAUDE_ROUTER_PROVIDER=model-proxy
+  claude --model 'deepseek-flash[1m]'
 )
 ```
 
@@ -279,7 +297,7 @@ See [authentication](configuration.md#authentication) for each outbound credenti
 
 Open `/router` and make sure that the selected profile and routing state are correct.
 Use a configured native model ID for the initial model.
-Do not use `proxy` or a router-internal alias as an API model ID.
+Do not use `model-proxy` or a router-internal alias as an API model ID.
 
 The native model picker is not the router's inventory.
 Documented discovery limits can hide non-Claude IDs or skip custom-header-only discovery.
@@ -319,7 +337,7 @@ Test evidence and live gaps are in [verification](verification.md).
 ## Router compatibility
 
 The profile uses the schema from
-[claude-router 1.17.1, commit 7e1274b](https://github.com/alexei-led/claude-router/tree/7e1274b69969bc4ddb09d7f12e3377e6afd030e1).
+[claude-router 1.19.1](https://github.com/alexei-led/claude-router/tree/v1.19.1); the integration tests also cover the 1.19.2 preparation.
 The local checkout is named `claude-model-router`.
 Run the existing profile validator after a schema or profile change.
 This does not prove current prices, provider capabilities or actual classifier decisions.

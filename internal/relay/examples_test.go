@@ -14,7 +14,7 @@ import (
 const (
 	personalExample = "personal.json"
 	workExample     = "work.json"
-	routerExample   = "proxy-router.json"
+	routerExample   = "model-proxy-router.json"
 )
 
 type routerProfile struct {
@@ -106,6 +106,9 @@ func TestExampleConfigs(t *testing.T) {
 	for _, name := range []string{personalExample, workExample} {
 		t.Run(name, func(t *testing.T) {
 			raw := exampleConfig(t, name)
+			if len(raw.Models) != 2 || len(raw.Upstreams) != 2 {
+				t.Fatal("examples must contain exactly Anthropic and DeepSeek")
+			}
 			config := materializeConfig(t, raw)
 			paths := []string{raw.AccessTokenFile}
 			for _, entry := range raw.Upstreams {

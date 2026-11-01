@@ -36,7 +36,7 @@ go test ./internal/relay -run 'TestExampleConfigs|TestCrossProviderTurns|TestDoc
 For the existing router schema validator:
 
 ```sh
-node scripts/validate-router-profile.mjs /path/to/trusted/claude-model-router examples/proxy-router.json
+node scripts/validate-router-profile.mjs /path/to/trusted/claude-model-router examples/model-proxy-router.json
 ```
 
 Use only trusted source.

@@ -24,6 +24,8 @@ See [verification](verification.md) for evidence and open acceptance gates.
 | D10 | Process-local client configuration, with existing login and profile files unchanged |
 
 The proxy has no classifier, database, cache store, dashboard or provider SDK.
+An optional `connect` CLI helper prepares a child process; it never starts the server.
+Its configuration reader opens only the selected configuration and local token, not upstream credentials.
 It does not manage OAuth login, refresh or account rotation.
 It does not execute tools or add missing provider capabilities.
 

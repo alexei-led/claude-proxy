@@ -17,19 +17,6 @@
         "mode": "bearer",
         "key_file": "secrets/deepseek-work.key"
       }
-    },
-    "zai": {
-      "messages_url": "https://api.z.ai/api/anthropic/v1/messages",
-      "auth": {
-        "mode": "bearer",
-        "key_file": "secrets/zai-work.key"
-      }
-    },
-    "local": {
-      "messages_url": "http://127.0.0.1:11434/v1/messages",
-      "auth": {
-        "mode": "none"
-      }
     }
   },
   "models": {
@@ -40,14 +27,6 @@
     "deepseek-flash": {
       "upstream": "deepseek",
       "display_name": "DeepSeek Flash"
-    },
-    "glm-5.3-flash": {
-      "upstream": "zai",
-      "display_name": "GLM Flash"
-    },
-    "qwen3-coder:30b": {
-      "upstream": "local",
-      "display_name": "Local Qwen"
     }
   }
 }
