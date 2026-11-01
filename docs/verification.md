@@ -217,3 +217,17 @@ Formal ASD-STE100 compliance is not certified without the official dictionary an
 The README SVG was rendered and inspected in light and dark themes.
 The architecture sequence diagram was rendered and inspected locally.
 The PR preview remains the final check for GitHub page layout.
+
+## Two-provider integration for v0.1.3
+
+On 2026-11-01, the development helper was exercised with Claude Code 2.1.316, the installed Router 1.19.1, the selected work account directory and its existing gateway. Only synthetic prompts and one temporary text fixture were used. The personal profile was not called.
+
+- DeepSeek Flash at low effort and Opus at xhigh each returned the expected marker through `connect`.
+- One streaming CLI conversation completed pinned DeepSeek low → Opus xhigh → DeepSeek high. Each turn used Read successfully and returned the expected fixture marker.
+- Automatic mode then completed a turn; the real Jev classifier was healthy and the router reported its selected native DeepSeek ID. Pins alone are not presented as automatic-transition evidence.
+- The opt-in launcher loaded Router without unrelated user plugins or MCP servers. It excluded ordinary instruction files, automatic memory and implicit user/project settings; managed policy remained active.
+- Protected settings and the original work launcher layer retained their hashes. The test proxy stopped after the run.
+
+Safe mode was rejected for the final launcher because it disables the Mod hooks. Full user settings were also rejected because explicitly passing them re-enabled unrelated plugins. The final launcher uses minimal settings that enable only Router, with documented context exclusions.
+
+These checks do not certify account identity, OAuth refresh, billing, full-context requests, subagents, or every possible cross-provider thinking history. The displayed costs are estimates, not invoices. No company project was opened and no provider fallback or body translation was added.

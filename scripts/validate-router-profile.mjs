@@ -12,8 +12,8 @@ if (args.length !== 2) {
   try {
     const { loadConfig } = await import(pathToFileURL(resolve(args[0], "lib/config.mjs")));
     const userFile = JSON.parse(await readFile(args[1], "utf8"));
-    const config = loadConfig({ provider: "proxy", userFile });
-    console.log("Valid proxy router profile: " + Object.keys(config.models).length + " models.");
+    const config = loadConfig({ provider: "model-proxy", userFile });
+    console.log("Valid model-proxy router profile: " + Object.keys(config.models).length + " models.");
   } catch {
     console.error(
       "Router profile validation failed. Check the trusted source checkout, profile path and schema.",

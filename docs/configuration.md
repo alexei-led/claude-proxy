@@ -12,11 +12,18 @@ See the [examples](../examples/) for complete JSON files.
 ```text
 claude-proxy --config PATH
 claude-proxy --config PATH --check
+claude-proxy connect --config PATH -- COMMAND [ARGS]
 ```
 
 `--check` performs file validation without a listener or network calls.
 Normal operation prints a non-secret `ready` record after the socket opens.
 SIGINT or SIGTERM starts bounded shutdown.
+
+`connect` is an optional process-local client helper. It does not start a listener.
+It reads the configuration and local token without opening upstream key files, checks the complete local catalog, and replaces its process with the supplied command.
+The child receives `ANTHROPIC_BASE_URL`, the separate access header and `CLAUDE_ROUTER_PROVIDER=model-proxy`.
+The parent environment and saved OAuth remain unchanged. Resolve conflicting client settings and policies before use.
+See [client setup](integration.md#6-start-the-opted-in-session) for constraints and the manual alternative.
 
 ## JSON schema
 

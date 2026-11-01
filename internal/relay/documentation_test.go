@@ -78,7 +78,7 @@ func TestDocumentedLaunch(t *testing.T) {
 			t.Run(profile+"/"+tc.name, func(t *testing.T) {
 				_, root, environment := snippetFixture(t, profile)
 				prelude := `claude() {
- test "$#" = 2 && test "$1" = --model && test "$2" = claude-opus-5-5 || return 1
+ test "$#" = 2 && test "$1" = --model && test "$2" = 'deepseek-flash[1m]' || return 1
  test -z "${ANTHROPIC_API_KEY+x}" && test -z "${ANTHROPIC_AUTH_TOKEN+x}" || return 1
  printf '%s\000%s\000%s' "$ANTHROPIC_BASE_URL" "$CLAUDE_ROUTER_PROVIDER" "$ANTHROPIC_CUSTOM_HEADERS" > "$config_root/observed"
 }
@@ -104,7 +104,7 @@ func TestDocumentedLaunch(t *testing.T) {
 					wantHeaders = tc.headers + "\n" + wantHeaders
 				}
 				wantURL := "http://" + exampleConfig(t, profile+".json").Listen
-				if len(parts) != 3 || parts[0] != wantURL || parts[1] != "proxy" || parts[2] != wantHeaders {
+				if len(parts) != 3 || parts[0] != wantURL || parts[1] != "model-proxy" || parts[2] != wantHeaders {
 					t.Fatal("documented launch lost headers or mixed profile settings")
 				}
 			})
