@@ -133,7 +133,8 @@ func TestActiveRequestPreventsIdleDrain(t *testing.T) {
 		t.Fatal(err)
 	}
 	server := relay.NewServer(config, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	local := httptest.NewServer(server)
+	handlerDone := make(chan struct{})
+	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { server.ServeHTTP(w, r); close(handlerDone) }))
 	defer local.Close()
 	b := &broker{leases: make(map[int]lease), server: server}
 	done := make(chan error, 1)
@@ -161,6 +162,7 @@ func TestActiveRequestPreventsIdleDrain(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
+	<-handlerDone
 	if server.ActiveRequests() != 0 {
 		t.Fatal("forwarding slot was not released")
 	}

@@ -3,9 +3,16 @@ package managed
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"net"
+	"strings"
 	"syscall"
 	"testing"
+	"testing/synctest"
+	"time"
+
+	"github.com/alexei-led/claude-proxy/internal/relay"
 )
 
 type acceptStep struct {
@@ -52,5 +59,50 @@ func TestControlAcceptCancellationIsNotAListenerFailure(t *testing.T) {
 	}
 	if listener.calls != 1 {
 		t.Fatal("canceled accept loop retried")
+	}
+}
+
+func TestControlLoopWaitsForInFlightHandlers(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		server, client := net.Pipe()
+		defer func() { _ = client.Close() }()
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		returned := make(chan error, 1)
+		listener := &scriptedListener{steps: []acceptStep{{connection: server}, {err: errors.New("terminal")}}}
+		go func() {
+			returned <- serveControl(t.Context(), listener, func(connection net.Conn) { close(entered); <-release; _ = connection.Close() })
+		}()
+		<-entered
+		synctest.Wait()
+		select {
+		case err := <-returned:
+			t.Fatalf("control loop returned before its handler exited: %v", err)
+		default:
+		}
+		close(release)
+		if err := <-returned; err == nil {
+			t.Fatal("terminal accept failure was lost")
+		}
+	})
+}
+
+func TestBrokerObservesControlFailureAndClosesHTTPListener(t *testing.T) {
+	_, config := fixture(t, "0")
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = listener.Close() }()
+	control := &scriptedListener{steps: []acceptStep{{err: errors.New("terminal accept failure")}}}
+	server := relay.NewServer(config, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	err = serveBroker(t.Context(), config, server, control, listener, "test-generation")
+	if err == nil || !strings.Contains(err.Error(), "managed control listener failed") {
+		t.Fatalf("terminal control failure was not propagated: %v", err)
+	}
+	connection, err := (&net.Dialer{Timeout: time.Second}).DialContext(t.Context(), "tcp4", listener.Addr().String())
+	if err == nil {
+		_ = connection.Close()
+		t.Fatal("HTTP listener remained reachable after control failure")
 	}
 }

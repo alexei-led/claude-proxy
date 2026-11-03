@@ -104,9 +104,12 @@ func Serve(ctx context.Context, path, identity string) error {
 		return errors.New("cannot bind managed loopback listener")
 	}
 	defer func() { _ = listener.Close() }()
+	return serveBroker(ctx, config, relay.NewServer(config, logger), control, listener, identity)
+}
+
+func serveBroker(ctx context.Context, config *relay.Config, server *relay.Server, control, listener net.Listener, identity string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	server := relay.NewServer(config, logger)
 	version := "development"
 	if build, ok := debug.ReadBuildInfo(); ok && build.Main.Version != "" {
 		version = build.Main.Version

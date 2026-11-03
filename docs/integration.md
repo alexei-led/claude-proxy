@@ -126,13 +126,13 @@ examples_dir=$(mktemp -d "${TMPDIR:-/tmp}/claude-proxy-examples.XXXXXX")
   set -eu
   for file in personal.json work.json model-proxy-router.json; do
     curl --fail --silent --show-error --location \
-      "https://raw.githubusercontent.com/alexei-led/claude-proxy/v0.1.3/examples/$file" \
+      "https://raw.githubusercontent.com/alexei-led/claude-proxy/v0.1.5/examples/$file" \
       --output "$examples_dir/$file"
   done
 )
 ```
 
-These examples are pinned to the v0.1.3 two-provider examples.
+These examples are pinned to the v0.1.5 managed-lifecycle examples.
 For a source checkout, use `examples_dir="$PWD/examples"` instead.
 Review the downloaded files before copying them into your private directory.
 
