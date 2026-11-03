@@ -78,6 +78,8 @@ func errorDetails(status int) (string, string) {
 		return invalidRequestError, "Unsupported request content type or encoding."
 	case http.StatusTooManyRequests:
 		return "rate_limit_error", "Relay is at capacity."
+	case http.StatusServiceUnavailable:
+		return "api_error", "Relay is shutting down."
 	case http.StatusBadGateway:
 		return "api_error", "Upstream connection failed."
 	case http.StatusGatewayTimeout:

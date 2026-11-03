@@ -12,12 +12,21 @@ See the [examples](../examples/) for complete JSON files.
 ```text
 claude-proxy --config PATH
 claude-proxy --config PATH --check
+claude-proxy run --config PATH -- COMMAND [ARGS]
 claude-proxy connect --config PATH -- COMMAND [ARGS]
+claude-proxy status --config PATH
+claude-proxy stop --config PATH
 ```
 
 `--check` performs file validation without a listener or network calls.
 Normal operation prints a non-secret `ready` record after the socket opens.
 SIGINT or SIGTERM starts bounded shutdown.
+
+`run` starts or reuses a managed broker for this configuration and installed binary. It registers its PID before replacing itself with the client. The broker binds a free literal loopback port; `listen` remains the standalone-mode address. A process waiting for input or running tools still counts as a session.
+
+New configuration, selected key contents or executable bytes create a new generation. Existing clients keep their old broker. No active stream is restarted and no provider request is retried. `status` reports the current generation's version, PID, sessions, active requests and tracking uncertainty without secrets. `stop` refuses while clients or requests remain active.
+
+macOS tracks process exits with kqueue. Linux records the process birth identity and checks exit/zombie state. Unknown liveness prevents idle shutdown. Detached descendants must register through their own launcher; scanning unrelated processes is not supported.
 
 `connect` is an optional process-local client helper. It does not start a listener.
 It reads the configuration and local token without opening upstream key files, checks the complete local catalog, and replaces its process with the supplied command.
@@ -41,6 +50,26 @@ The parser rejects null values, extra JSON values and unsupported versions.
 | `access_token_file` | Yes      | File that contains this profile's local access token     |
 | `upstreams`         | Yes      | Nonempty object of named upstreams                       |
 | `models`            | Yes      | Nonempty object of exact native model IDs                |
+| `runtime`           | No       | Managed idle timeout and bounded forwarding concurrency |
+
+### Runtime settings
+
+```json
+{
+  "runtime": {
+    "idle_timeout": "5m",
+    "max_inflight": 32
+  }
+}
+```
+
+`idle_timeout` defaults to `5m`; `0` disables managed idle shutdown. The timer runs only with zero living client registrations and zero active forwarded requests. New registrations or forwarding reset it. Unknown process tracking keeps the broker alive. Manually started servers do not use this timer.
+
+`max_inflight` defaults to 8 and accepts integers 1 through 64. It controls forwarding admission and per-host transport connections in both modes. Excess requests receive 429 immediately; there is no hidden queue or retry. The examples use 32 after a fake-provider check with 32 simultaneous 1 MiB bodies. At the 32 MiB per-request ceiling, 32 admitted bodies alone can require about 1 GiB before other allocations. Provider limits still apply.
+
+Managed runtime files live in an owner-only `claude-proxy` directory below the OS user cache directory, or `XDG_RUNTIME_DIR` when set. Locks, control sockets and bounded private logs are machine state, not configuration. The selected runtime parent must be absolute and the control socket path must fit within 100 bytes. Set a shorter private `XDG_RUNTIME_DIR` if needed.
+
+Control messages contain process and generation metadata, never API keys or OAuth. Per-generation logs are bounded to 1 MiB. Stopped brokers may leave stale sockets/locks/logs; the startup-lock owner safely replaces a stale socket. Do not delete runtime files while brokers are running.
 
 Listener hostnames, wildcard addresses and leading-zero ports are invalid.
 Each profile needs its own listener, token and provider keys.
@@ -179,12 +208,12 @@ Those responses use the standard server format, including 431 for excessive head
 
 ## Resource limits
 
-These are implementation constants, not configuration fields.
+Most limits are implementation constants. Forwarding concurrency is configurable through `runtime.max_inflight`.
 
 | Resource                      | Limit                                          |
 | ----------------------------- | ---------------------------------------------- |
 | Request body                  | 32 MiB                                         |
-| Concurrent forwarded POSTs    | 8, with immediate rejection of excess requests |
+| Concurrent forwarded POSTs    | Default 8; configurable 1–64, immediate rejection of excess requests |
 | Inbound headers               | 64 KiB configured server limit                 |
 | Upstream response-header size | 64 KiB                                         |
 | Header read                   | 5 seconds                                      |

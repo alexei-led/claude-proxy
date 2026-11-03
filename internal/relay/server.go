@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 )
@@ -30,14 +31,16 @@ type Server struct {
 	transport *http.Transport
 	proxies   map[*url.URL]*httputil.ReverseProxy
 	slots     chan struct{}
+	lifecycle sync.Mutex
+	draining  bool
 	catalog   []byte
 }
 
 // NewServer creates a relay without binding or making outbound calls.
 func NewServer(config *Config, logger *slog.Logger) *Server {
 	server := &Server{
-		config: config, logger: logger, transport: newTransport(),
-		proxies: make(map[*url.URL]*httputil.ReverseProxy), slots: make(chan struct{}, maxInflight),
+		config: config, logger: logger, transport: newTransport(config.MaxInflight()),
+		proxies: make(map[*url.URL]*httputil.ReverseProxy), slots: make(chan struct{}, config.MaxInflight()),
 		catalog: catalog(config),
 	}
 	for _, entry := range config.models {
@@ -92,10 +95,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, _ = summary.Write(s.catalog)
 		return
 	}
+	s.lifecycle.Lock()
+	if s.draining {
+		s.lifecycle.Unlock()
+		localError(summary, http.StatusServiceUnavailable)
+		return
+	}
 	select {
 	case s.slots <- struct{}{}:
-		defer func() { <-s.slots }()
+		s.lifecycle.Unlock()
+		defer func() { s.lifecycle.Lock(); <-s.slots; s.lifecycle.Unlock() }()
 	default:
+		s.lifecycle.Unlock()
 		localError(summary, http.StatusTooManyRequests)
 		return
 	}
