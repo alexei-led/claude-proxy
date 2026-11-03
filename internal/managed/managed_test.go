@@ -265,8 +265,9 @@ func clientConnection(t *testing.T, client testClient) []string {
 	for time.Now().Before(deadline) {
 		// #nosec G304 -- Read only this test's dummy-client connection capture.
 		body, err := os.ReadFile(client.output)
-		if err == nil {
-			return strings.Split(strings.TrimSpace(string(body)), "\n")
+		// The shell creates the file before printf writes it; an empty read is not ready.
+		if lines := strings.Split(strings.TrimSpace(string(body)), "\n"); err == nil && len(lines) == 2 {
+			return lines
 		}
 		time.Sleep(10 * time.Millisecond)
 	}

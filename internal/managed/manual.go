@@ -34,15 +34,15 @@ func ServeForeground(ctx context.Context, path string, config *relay.Config, log
 	}
 	defer unlock()
 	for {
-		if info, err := exchange(startup, loc, request{Operation: operationStatus}); err == nil {
+		info, err := exchange(startup, loc, request{Operation: operationStatus})
+		if err == nil {
 			logger.Info("already running", "profile", config.Profile(), "listen", info.Address, "pid", info.PID, "mode", info.Mode, "version", info.Version)
 			return nil
 		}
-		connection, err := (&net.Dialer{Timeout: 100 * time.Millisecond}).DialContext(startup, "unix", loc.socket)
-		if err != nil {
+		// Only a refused or missing socket is stale; see Ensure.
+		if errors.Is(err, errNoRegistration) {
 			break
 		}
-		_ = connection.Close()
 		if err := pause(startup, 25*time.Millisecond); err != nil {
 			return err
 		}

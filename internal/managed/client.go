@@ -65,14 +65,15 @@ func Ensure(ctx context.Context, path string, config *relay.Config) (Info, error
 	}
 	defer func() { _ = lock.Close() }()
 	for {
-		if info, err := exchange(ctx, loc, request{Operation: operationRegister, PID: os.Getpid()}); err == nil {
+		info, err := exchange(ctx, loc, request{Operation: operationRegister, PID: os.Getpid()})
+		if err == nil {
 			return info, nil
 		}
-		connection, err := (&net.Dialer{Timeout: 100 * time.Millisecond}).DialContext(ctx, "unix", loc.socket)
-		if err != nil {
+		// Only a refused or missing socket is stale. A slow or busy broker
+		// must keep its socket, so wait for it under the startup deadline.
+		if errors.Is(err, errNoRegistration) {
 			break
 		}
-		_ = connection.Close()
 		if err := pause(ctx, 25*time.Millisecond); err != nil {
 			return Info{}, err
 		}
