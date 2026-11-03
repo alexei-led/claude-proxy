@@ -18,7 +18,7 @@ See [verification](verification.md) for evidence and open acceptance gates.
 | D4  | Explicit destinations only, with no shared credential pool or account switching     |
 | D5  | Model metadata, classifier calls and routing policy stay in model-router            |
 | D6  | Exact native model IDs, with no proxy aliases or model rewriting                    |
-| D7  | No retries, replay or provider fallback                                             |
+| D7  | No provider fallback; optional retry only of 503/529 answers and failed dials       |
 | D8  | Loopback listener and a separate local access token                                 |
 | D9  | Explicit launcher-managed startup or manual operation; no login service or hot reload                    |
 | D10 | Process-local client configuration, with existing login and profile files unchanged |
@@ -98,8 +98,13 @@ Other routes receive only allowed protocol headers and their selected server key
 
 The transport uses system TLS trust.
 It ignores ambient forward-proxy variables.
-Requests have no replayable body.
-The proxy neither follows redirects nor creates retry loops.
+The transport never replays a request by itself: the body is not replayable.
+The proxy does not follow redirects.
+
+An upstream may opt in to `retry`. The relay then re-sends a request only when the provider provably did not start generating: a 503 or 529 answer, or a failed connection dial. It never retries after the request left, such as a timeout or reset, because the provider may already have billed it.
+A retry happens before any response byte reaches the client, so a stream is never joined or repeated.
+Attempts are capped at 5 with jittered exponential backoff of at most 4 seconds per step. A `Retry-After` of more than 4 seconds is passed to the client unchanged. Claude Code retries too, so the relay budget stays small. Backoff stops when the client hangs up.
+There is no fallback to another model or provider.
 
 A response body is never accumulated as a full stream.
 After response commitment, a transport error ends the connection.

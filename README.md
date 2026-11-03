@@ -8,7 +8,7 @@ Each exact model ID selects one configured upstream.
 
 ![Claude Code sends a native request through one local proxy to one selected provider.](docs/assets/overview.svg)
 
-- **Native requests and streams.** No translation, model rewriting, proxy retries or fallback.
+- **Native requests and streams.** No translation, model rewriting or fallback. Optional per-upstream retry of 503/529 answers.
 - **Separate credentials.** Session OAuth on explicit passthrough routes. Server-held keys for other providers.
 - **Local only.** One standard-library Go binary, a loopback listener and a private local token.
 

@@ -9,6 +9,7 @@ const (
 	kindUnknown         = "unknown"
 	kindModels          = "models"
 	invalidRequestError = "invalid_request_error"
+	apiError            = "api_error"
 	authOAuth           = "oauth_passthrough"
 	authBearer          = "bearer"
 	authAPIKey          = "x_api_key"

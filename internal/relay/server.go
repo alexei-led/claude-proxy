@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -24,6 +25,9 @@ const (
 	readBodyTimeout   = 30 * time.Second
 )
 
+// statusClientClosed is nginx's code for a client that hung up; net/http has none.
+const statusClientClosed = 499
+
 // Server owns one profile's immutable routes and bounded transport.
 type Server struct {
 	config    *Config
@@ -39,7 +43,7 @@ type Server struct {
 // NewServer creates a relay without binding or making outbound calls.
 func NewServer(config *Config, logger *slog.Logger) *Server {
 	server := &Server{
-		config: config, logger: logger, transport: newTransport(config.MaxInflight()),
+		config: config, logger: logger, transport: newTransport(config.MaxInflight(), config.ResponseHeaderWait()),
 		proxies: make(map[*url.URL]*httputil.ReverseProxy), slots: make(chan struct{}, config.MaxInflight()),
 		catalog: catalog(config),
 	}
@@ -62,7 +66,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.logger.Info("request", "profile", s.config.profile, "method", methodKind(r.Method),
 			"path", kind, "status", summary.status, "elapsed", time.Since(start),
 			"request_bytes", summary.requestBytes, "response_bytes", summary.bytes, "category", summary.category,
-			"model", summary.model, "upstream", summary.upstream)
+			"model", summary.model, "upstream", summary.upstream, "retries", summary.retries)
 	}()
 	if !localAccess(r.Header, s.config.token) {
 		localError(summary, http.StatusUnauthorized)
@@ -165,10 +169,16 @@ func (s *Server) forward(w *responseSummary, r *http.Request, kind string) {
 		body = stripToolPatterns(body)
 	}
 	// A non-replayable body prevents Transport from retrying a generation even
-	// when the client supplies an idempotency header.
+	// when the client supplies an idempotency header. Only the relay's own
+	// retrier, which re-sends after a 503/529 or failed dial, gets the bytes.
 	r.Body = io.NopCloser(bytes.NewReader(body))
 	r.ContentLength = int64(len(body))
 	r.GetBody = nil
+	if entry.upstream.attempts > 1 {
+		state := &replay{body: body}
+		r = r.WithContext(context.WithValue(r.Context(), replayKey{}, state))
+		defer func() { w.retries = state.retries }()
+	}
 	s.proxies[target].ServeHTTP(w, r)
 }
 

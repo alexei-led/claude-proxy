@@ -66,14 +66,17 @@ A repeated foreground start reports an existing matching server and exits withou
 {
   "runtime": {
     "idle_timeout": "5m",
-    "max_inflight": 32
+    "max_inflight": 32,
+    "response_header_timeout": "180s"
   }
 }
 ```
 
+`response_header_timeout` defaults to `180s` and accepts 1 second to 10 minutes. It is how long one upstream try may take to start answering. Raise it for a provider that queues requests under load. The request ends with 504 only after this time.
+
 `idle_timeout` defaults to `5m`; `0` disables managed idle shutdown. The timer runs only with zero living client registrations and zero active forwarded requests. New registrations or forwarding reset it. Unknown process tracking keeps the broker alive. Manually started servers do not use this timer.
 
-`max_inflight` defaults to 8 and accepts integers 1 through 64. It controls forwarding admission and per-host transport connections in both modes. Excess requests receive 429 immediately; there is no hidden queue or retry. The examples use 32 after a fake-provider check with 32 simultaneous 1 MiB bodies. At the 32 MiB per-request ceiling, 32 admitted bodies alone can require about 1 GiB before other allocations. Provider limits still apply.
+`max_inflight` defaults to 8 and accepts integers 1 through 64. It controls forwarding admission and per-host transport connections in both modes. Excess requests receive 429 immediately; there is no hidden queue. The examples use 32 after a fake-provider check with 32 simultaneous 1 MiB bodies. At the 32 MiB per-request ceiling, 32 admitted bodies alone can require about 1 GiB before other allocations. Provider limits still apply.
 
 Managed runtime files live in an owner-only `claude-proxy` directory below the OS user cache directory, or `XDG_RUNTIME_DIR` when set. Locks, control sockets and bounded private logs are machine state, not configuration. The selected runtime parent must be absolute and the control socket path must fit within 100 bytes. Set a shorter private `XDG_RUNTIME_DIR` if needed.
 
@@ -94,6 +97,9 @@ The label is not a model prefix.
 | `count_tokens_url` | No                   | Complete URL for native token-count requests        |
 | `auth.mode`        | Yes                  | One of the modes in the next table                  |
 | `auth.key_file`    | For server-key modes | File that contains the selected provider's key      |
+| `retry`            | No                   | `{"max_attempts": N}`, see below                    |
+
+`retry.max_attempts` is the total number of tries per request, from 1 to 5. Omit `retry`, or use 1, for no retry. The relay re-sends only after an upstream 503 or 529 answer, or a failed connection dial, and waits 0.25 to 4 seconds between tries with jitter. It honors a `Retry-After` of up to 4 seconds and passes a longer one to the client. It never retries a timeout or a reset after the request was sent. The request log shows `retried ×N` when it retried. Each try gets its own `response_header_timeout`.
 
 Endpoint URLs need an absolute path and host.
 HTTPS is required, except for HTTP at a literal loopback IP.

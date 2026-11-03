@@ -28,6 +28,17 @@ func TestReadableManualLifecycleAndRequestLogs(t *testing.T) {
 	}
 }
 
+func TestRetriedRequestsAreMarked(t *testing.T) {
+	var output bytes.Buffer
+	logger := slog.New(New(&output, false))
+	logger.Info("request", "method", "POST", "path", "messages", "model", "m", "upstream", "u", "status", 200, "elapsed", time.Second, "retries", 2)
+	logger.Info("request", "method", "POST", "path", "messages", "model", "m", "upstream", "u", "status", 200, "elapsed", time.Second, "retries", 0)
+	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+	if !strings.Contains(lines[0], "retried ×2") || strings.Contains(lines[1], "retried") {
+		t.Fatalf("retry marker wrong: %q", lines)
+	}
+}
+
 func TestColorAndTerminalInjectionSafety(t *testing.T) {
 	var output bytes.Buffer
 	logger := slog.New(New(&output, true))

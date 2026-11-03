@@ -25,18 +25,23 @@ type authConfig struct {
 	Mode    string `json:"mode"`
 	KeyFile string `json:"key_file,omitempty"`
 }
+type retryConfig struct {
+	MaxAttempts int `json:"max_attempts"`
+}
 type upstreamConfig struct {
-	MessagesURL    string     `json:"messages_url"`
-	CountTokensURL string     `json:"count_tokens_url,omitempty"`
-	Auth           authConfig `json:"auth"`
+	MessagesURL    string       `json:"messages_url"`
+	CountTokensURL string       `json:"count_tokens_url,omitempty"`
+	Auth           authConfig   `json:"auth"`
+	Retry          *retryConfig `json:"retry,omitempty"`
 }
 type modelConfig struct {
 	Upstream    string `json:"upstream"`
 	DisplayName string `json:"display_name,omitempty"`
 }
 type runtimeConfig struct {
-	IdleTimeout string `json:"idle_timeout,omitempty"`
-	MaxInflight *int   `json:"max_inflight,omitempty"`
+	IdleTimeout           string `json:"idle_timeout,omitempty"`
+	MaxInflight           *int   `json:"max_inflight,omitempty"`
+	ResponseHeaderTimeout string `json:"response_header_timeout,omitempty"`
 }
 
 type fileConfig struct {
@@ -53,6 +58,7 @@ type upstream struct {
 	count    *url.URL
 	mode     string
 	key      string
+	attempts int // total tries per request; 0 or 1 means no retry
 }
 type model struct {
 	upstream    *upstream
@@ -68,6 +74,7 @@ type Config struct {
 	models      map[string]model
 	idleTimeout time.Duration
 	concurrency int
+	headerWait  time.Duration
 	fingerprint [32]byte
 }
 
@@ -104,7 +111,11 @@ func LoadConfig(path string) (*Config, error) {
 				return nil, err
 			}
 		}
-		route := &upstream{messages: messages, count: count, mode: entry.Auth.Mode}
+		attempts, retryErr := retryAttempts(entry.Retry)
+		if retryErr != nil {
+			return nil, retryErr
+		}
+		route := &upstream{messages: messages, count: count, mode: entry.Auth.Mode, attempts: attempts}
 		switch route.mode {
 		case authOAuth, authNone:
 			if entry.Auth.KeyFile != "" {
@@ -123,11 +134,14 @@ func LoadConfig(path string) (*Config, error) {
 		}
 		compiled[label] = route
 	}
-	idle, limit, err := runtimeSettings(raw.Runtime)
+	settings, err := runtimeSettings(raw.Runtime)
 	if err != nil {
 		return nil, err
 	}
-	config := &Config{profile: raw.Profile, listen: raw.Listen, token: token, models: make(map[string]model, len(raw.Models)), idleTimeout: idle, concurrency: limit}
+	config := &Config{
+		profile: raw.Profile, listen: raw.Listen, token: token, models: make(map[string]model, len(raw.Models)),
+		idleTimeout: settings.idle, concurrency: settings.limit, headerWait: settings.headerWait,
+	}
 	for id, entry := range raw.Models {
 		route, ok := compiled[entry.Upstream]
 		if id == "" || !ok {
@@ -174,7 +188,7 @@ func readConfig(path string) (fileConfig, error) {
 	if raw.AccessTokenFile == "" || len(raw.Models) == 0 || len(raw.Upstreams) == 0 {
 		return fileConfig{}, errors.New("configuration requires an access token, upstreams and models")
 	}
-	if _, _, err := runtimeSettings(raw.Runtime); err != nil {
+	if _, err := runtimeSettings(raw.Runtime); err != nil {
 		return fileConfig{}, err
 	}
 	return raw, nil
@@ -255,7 +269,7 @@ func validateConfigJSON(body []byte) error {
 	}
 	if value, exists := root["runtime"]; exists {
 		runtime, ok := value.(map[string]any)
-		if !ok || !onlyFields(runtime, "idle_timeout", "max_inflight") {
+		if !ok || !onlyFields(runtime, "idle_timeout", "max_inflight", "response_header_timeout") {
 			return errors.New("unknown runtime fields")
 		}
 	}
@@ -265,8 +279,14 @@ func validateConfigJSON(body []byte) error {
 	}
 	for _, v := range upstreams {
 		entry, isObject := v.(map[string]any)
-		if !isObject || !onlyFields(entry, "messages_url", "count_tokens_url", "auth") {
+		if !isObject || !onlyFields(entry, "messages_url", "count_tokens_url", "auth", "retry") {
 			return errors.New("unknown upstream fields")
+		}
+		if value, exists := entry["retry"]; exists {
+			retry, isRetry := value.(map[string]any)
+			if !isRetry || !onlyFields(retry, "max_attempts") {
+				return errors.New("unknown retry fields")
+			}
 		}
 		auth, isAuth := entry["auth"].(map[string]any)
 		if !isAuth || !onlyFields(auth, "mode", "key_file") {

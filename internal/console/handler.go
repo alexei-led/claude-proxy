@@ -84,6 +84,9 @@ func (handler *Handler) Handle(_ context.Context, record slog.Record) error {
 		if category := value("category"); category != "" && category != "<nil>" {
 			message += "  " + category
 		}
+		if retries := values["retries"]; retries.Kind() == slog.KindInt64 && retries.Int64() > 0 {
+			message += fmt.Sprintf("  retried ×%d", retries.Int64())
+		}
 	case "stopped":
 		message = value("profile") + "  " + value("mode")
 	default:
