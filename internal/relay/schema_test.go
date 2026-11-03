@@ -27,6 +27,16 @@ func TestStripToolPatterns(t *testing.T) {
 			want: `{"model":"m","tools":[{"name":"x","input_schema":{"type":"object","default":{"pattern":"a"},"$defs":{"id":{"type":"string"}}}}]}`,
 		},
 		{
+			name: "draft-07 dependencies and unescaped keys",
+			in:   `{"model":"m","tools":[{"name":"x","input_schema":{"dependencies":{"a<b":{"pattern":"c"}}}}]}`,
+			want: `{"model":"m","tools":[{"name":"x","input_schema":{"dependencies":{"a<b":{}}}}]}`,
+		},
+		{
+			name: "trailing bytes keep the original",
+			in:   `{"model":"m","tools":[{"name":"x","input_schema":{"pattern":"c"}}]} {}`,
+			want: `{"model":"m","tools":[{"name":"x","input_schema":{"pattern":"c"}}]} {}`,
+		},
+		{
 			name: "no tools keeps bytes",
 			in:   " {\"model\" : \"m\", \"messages\":[{\"pattern\":\"x\"}]} \n",
 			want: " {\"model\" : \"m\", \"messages\":[{\"pattern\":\"x\"}]} \n",
@@ -42,6 +52,17 @@ func TestStripToolPatterns(t *testing.T) {
 				t.Fatalf("got  %s\nwant %s", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestStripToolPatternsDepthLimit(t *testing.T) {
+	schema := `{"pattern":"x"}`
+	for range maxSchemaDepth {
+		schema = `{"not":` + schema + `}`
+	}
+	body := `{"model":"m","tools":[{"name":"x","input_schema":` + schema + `}]}`
+	if got := string(stripToolPatterns([]byte(body))); got != body {
+		t.Fatal("schema past the depth limit was rewritten")
 	}
 }
 

@@ -3,13 +3,15 @@ package relay
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 )
 
 // Server-key providers validate tool schemas with their own regex dialects and reject
 // some patterns Anthropic accepts: DeepSeek fails the whole request on Claude Code's
 // `^[^\0]*$`. A pattern only constrains generated arguments, so the relay drops every
 // `pattern` keyword from tool input schemas on those routes. OAuth routes keep the
-// original bytes. Everything outside the rewritten schemas keeps its bytes and order.
+// original bytes. A rewrite keeps member order and every value outside the edited schemas.
 
 type member struct {
 	key   string
@@ -25,9 +27,14 @@ var (
 	}
 	subschemaListKeys = map[string]bool{"anyOf": true, "oneOf": true, "allOf": true, "prefixItems": true}
 	subschemaMapKeys  = map[string]bool{
-		"properties": true, "patternProperties": true, "$defs": true, "definitions": true, "dependentSchemas": true,
+		"properties": true, "patternProperties": true, "$defs": true, "definitions": true,
+		"dependentSchemas": true, "dependencies": true,
 	}
 )
+
+// Real tool schemas nest a few levels; past this the schema is forwarded as is, which
+// bounds the re-tokenizing cost of each level.
+const maxSchemaDepth = 64
 
 // stripToolPatterns returns body unchanged unless a tool input schema held a pattern.
 func stripToolPatterns(body []byte) []byte {
@@ -61,7 +68,7 @@ func stripTool(raw json.RawMessage) (json.RawMessage, bool) {
 		if entry.key != "input_schema" {
 			continue
 		}
-		if next, edited := stripSchema(entry.value); edited {
+		if next, edited := stripSchema(entry.value, 0); edited {
 			members[i].value = next
 			changed = true
 		}
@@ -74,11 +81,15 @@ func stripTool(raw json.RawMessage) (json.RawMessage, bool) {
 
 // stripSchema walks only schema keywords, so a property named "pattern" (Grep's) and
 // data such as enum, const, default or examples stay intact.
-func stripSchema(raw json.RawMessage) (json.RawMessage, bool) {
+func stripSchema(raw json.RawMessage, depth int) (json.RawMessage, bool) {
+	if depth >= maxSchemaDepth {
+		return raw, false
+	}
 	members, ok := objectMembers(raw)
 	if !ok {
 		return raw, false // boolean schema or not a schema
 	}
+	child := func(value json.RawMessage) (json.RawMessage, bool) { return stripSchema(value, depth+1) }
 	kept := members[:0]
 	changed := false
 	for _, entry := range members {
@@ -88,14 +99,14 @@ func stripSchema(raw json.RawMessage) (json.RawMessage, bool) {
 			changed = true
 			continue
 		case subschemaKeys[entry.key]:
-			next, edited = stripSchema(entry.value)
+			next, edited = child(entry.value)
 			if !edited {
-				next, edited = mapList(entry.value, stripSchema)
+				next, edited = mapList(entry.value, child)
 			}
 		case subschemaListKeys[entry.key]:
-			next, edited = mapList(entry.value, stripSchema)
+			next, edited = mapList(entry.value, child)
 		case subschemaMapKeys[entry.key]:
-			next, edited = mapMembers(entry.value, stripSchema)
+			next, edited = mapMembers(entry.value, child)
 		}
 		changed = changed || edited
 		kept = append(kept, member{key: entry.key, value: next})
@@ -173,6 +184,9 @@ func objectMembers(raw []byte) ([]member, bool) {
 	if _, err := decoder.Token(); err != nil {
 		return nil, false
 	}
+	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
+		return nil, false // trailing bytes: forward the original
+	}
 	return members, true
 }
 
@@ -183,13 +197,20 @@ func encodeObject(members []member) []byte {
 		if i > 0 {
 			out.WriteByte(',')
 		}
-		key, _ := json.Marshal(entry.key) // Marshal of a string cannot fail.
-		out.Write(key)
+		writeKey(&out, entry.key)
 		out.WriteByte(':')
 		out.Write(entry.value)
 	}
 	out.WriteByte('}')
 	return out.Bytes()
+}
+
+// writeKey keeps <, > and & as written; json.Marshal would escape them.
+func writeKey(out *bytes.Buffer, key string) {
+	encoder := json.NewEncoder(out)
+	encoder.SetEscapeHTML(false)
+	_ = encoder.Encode(key)     // Encoding a string cannot fail.
+	out.Truncate(out.Len() - 1) // Encode appends a newline.
 }
 
 func isString(raw json.RawMessage) bool {
