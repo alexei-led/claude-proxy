@@ -32,7 +32,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf '%s\n' 'Expected an existing vMAJOR.MINOR.PATCH tag.' >&2
+            exit 1
+          fi
           gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > release-before.json
           jq --exit-status --arg tag "$RELEASE_TAG" '
             .tag_name == $tag and .name == $tag and .draft == false
