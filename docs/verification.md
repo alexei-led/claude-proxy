@@ -10,6 +10,8 @@ A passing fake-provider test does not prove a real provider or client combinatio
 | `v0.1.0` | [Release notes](releases/v0.1.0.md) | Native proxy and initial public integration |
 | `v0.1.1` | [Release notes](releases/v0.1.1.md) | Context-hint examples, scoped live evidence, documentation and workflow organization |
 | `v0.1.2` | [Release notes](releases/v0.1.2.md) | Homebrew distribution and release-to-tap automation |
+| `v0.1.3` | [Release notes](releases/v0.1.3.md) | Process-local `connect` helper for mixed model-proxy sessions |
+| `v0.1.4` | [Release notes](releases/v0.1.4.md) | Tool-schema `pattern` removal on server-key routes |
 
 [GitHub Releases](https://github.com/alexei-led/claude-proxy/releases) is the source of publication status.
 Committed notes alone do not prove that a release exists.
