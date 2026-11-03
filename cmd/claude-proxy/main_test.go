@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -42,7 +43,7 @@ func TestCheck(t *testing.T) {
 	}
 	var output bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&output, nil))
-	if err := run(t.Context(), []string{configFlag, path, "--check"}, logger); err != nil {
+	if err := run(t.Context(), []string{configFlag, path, "--check"}, logger, new(slog.LevelVar)); err != nil {
 		t.Fatal(err)
 	}
 	if calls.Load() != 0 {
@@ -57,9 +58,42 @@ func TestCheck(t *testing.T) {
 		}
 	}
 	for _, args := range [][]string{nil, {"--unknown=dummy-secret"}, {configFlag, path, "extra"}, {configFlag, "missing"}} {
-		err := run(context.Background(), args, logger)
+		err := run(context.Background(), args, logger, new(slog.LevelVar))
 		if err == nil || strings.Contains(err.Error(), "dummy-secret") {
 			t.Fatal("invalid argument handling")
+		}
+	}
+}
+
+func TestConfiguredLogLevelReplacesTerminalDefault(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "access"), []byte("dummy-local-secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	write := func(runtime string) string {
+		path := filepath.Join(dir, "config.json")
+		config := `{"version":1,"profile":"personal","listen":"127.0.0.1:43179","access_token_file":"access",` + runtime +
+			`"upstreams":{"native":{"messages_url":"http://127.0.0.1:12345/messages","auth":{"mode":"oauth_passthrough"}}},"models":{"exact-model":{"upstream":"native"}}}`
+		if err := os.WriteFile(path, []byte(config), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	for _, tc := range []struct {
+		runtime string
+		want    slog.Level
+	}{
+		{"", slog.LevelDebug},
+		{`"runtime":{"log_level":"warn"},`, slog.LevelWarn},
+	} {
+		level := new(slog.LevelVar)
+		level.Set(slog.LevelDebug)
+		if err := run(t.Context(), []string{configFlag, write(tc.runtime), "--check"}, logger, level); err != nil {
+			t.Fatal(err)
+		}
+		if level.Level() != tc.want {
+			t.Fatalf("%q: level = %v, want %v", tc.runtime, level.Level(), tc.want)
 		}
 	}
 }

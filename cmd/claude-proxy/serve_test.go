@@ -61,7 +61,7 @@ func TestRunServe(t *testing.T) {
 	ctx, stop := context.WithCancel(t.Context())
 	defer stop()
 	done := make(chan error, 1)
-	go func() { done <- run(ctx, []string{configFlag, path}, logger) }()
+	go func() { done <- run(ctx, []string{configFlag, path}, logger, new(slog.LevelVar)) }()
 	select {
 	case <-ready:
 	case err = <-done:

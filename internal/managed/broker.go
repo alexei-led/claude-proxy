@@ -85,9 +85,13 @@ func Serve(ctx context.Context, path, identity string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = logFile.Close() }()
-	sink := &boundedLog{file: logFile}
-	logger := slog.New(slog.NewJSONHandler(sink, nil))
+	sink := &boundedLog{path: loc.log, file: logFile}
+	defer func() { _ = sink.Close() }()
+	// The detached log is read after the fact, so routine success stays out
+	// of it (INFO) unless the configuration asks for more.
+	logger := slog.New(slog.NewJSONHandler(sink, &slog.HandlerOptions{
+		Level: config.LogLevel(slog.LevelInfo), ReplaceAttr: relay.NameLevel,
+	}))
 	control, err := listenControl(ctx, loc)
 	if err != nil {
 		return err
@@ -191,6 +195,10 @@ func (b *broker) handle(connection net.Conn, identity string) {
 		}
 	}
 	reply.Info = b.snapshot()
+	if message.Operation == operationStatus && reply.Error == "" {
+		stats := b.server.Stats()
+		reply.Stats = &stats
+	}
 	_ = json.NewEncoder(connection).Encode(reply)
 }
 

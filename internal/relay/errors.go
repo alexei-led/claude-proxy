@@ -3,17 +3,27 @@ package relay
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 )
 
+// responseSummary records what the access log and stats need about one
+// request while passing the response through unchanged.
 type responseSummary struct {
 	http.ResponseWriter
+	start        time.Time
 	status       int
 	bytes        int
 	requestBytes int
-	category     string
+	category     string // set only for responses the relay generated itself
 	model        string
 	upstream     string
 	retries      int
+	retryReasons []string
+	forwarded    bool          // the request was handed to the upstream proxy
+	ttfb         time.Duration // until upstream response headers reached the client
+	requestID    string
+	writeFailed  bool      // writing to the client failed: the client left
+	usage        *usageTap // only for forwarded Messages requests
 }
 
 func (w *responseSummary) Unwrap() http.ResponseWriter { return w.ResponseWriter }
@@ -23,6 +33,13 @@ func (w *responseSummary) WriteHeader(status int) {
 	stripCredentials(w.Header())
 	if status >= 200 && w.status == 0 {
 		w.status = status
+		if w.forwarded && w.category == "" {
+			w.ttfb = time.Since(w.start)
+			w.requestID = upstreamRequestID(w.Header())
+			if w.usage != nil {
+				w.usage.begin(w.Header())
+			}
+		}
 	}
 	w.ResponseWriter.WriteHeader(status)
 }
@@ -33,6 +50,12 @@ func (w *responseSummary) Write(body []byte) (int, error) {
 	}
 	n, err := w.ResponseWriter.Write(body)
 	w.bytes += n
+	if err != nil {
+		w.writeFailed = true
+	}
+	if w.usage != nil && w.category == "" {
+		w.usage.write(body[:n])
+	}
 	return n, err
 }
 
@@ -40,7 +63,11 @@ func (w *responseSummary) FlushError() error {
 	if w.status == 0 {
 		w.WriteHeader(http.StatusOK)
 	}
-	return http.NewResponseController(w.ResponseWriter).Flush()
+	err := http.NewResponseController(w.ResponseWriter).Flush()
+	if err != nil {
+		w.writeFailed = true
+	}
+	return err
 }
 
 func localError(w http.ResponseWriter, status int) {

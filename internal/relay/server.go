@@ -38,6 +38,9 @@ type Server struct {
 	lifecycle sync.Mutex
 	draining  bool
 	catalog   []byte
+	stats     *stats
+	// statsEvery is how often a traffic summary is logged; tests shorten it.
+	statsEvery time.Duration
 }
 
 // NewServer creates a relay without binding or making outbound calls.
@@ -45,7 +48,7 @@ func NewServer(config *Config, logger *slog.Logger) *Server {
 	server := &Server{
 		config: config, logger: logger, transport: newTransport(config.MaxInflight(), config.ResponseHeaderWait()),
 		proxies: make(map[*url.URL]*httputil.ReverseProxy), slots: make(chan struct{}, config.MaxInflight()),
-		catalog: catalog(config),
+		catalog: catalog(config), stats: newStats(time.Now()), statsEvery: statsInterval,
 	}
 	for _, entry := range config.models {
 		route := entry.upstream
@@ -59,15 +62,9 @@ func NewServer(config *Config, logger *slog.Logger) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	summary := &responseSummary{ResponseWriter: w}
-	start := time.Now()
+	summary := &responseSummary{ResponseWriter: w, start: time.Now()}
 	kind := pathKind(r)
-	defer func() {
-		s.logger.Info("request", "profile", s.config.profile, "method", methodKind(r.Method),
-			"path", kind, "status", summary.status, "elapsed", time.Since(start),
-			"request_bytes", summary.requestBytes, "response_bytes", summary.bytes, "category", summary.category,
-			"model", summary.model, "upstream", summary.upstream, "retries", summary.retries)
-	}()
+	defer s.finishRequest(r.Context(), summary, r.Method, kind)
 	if !localAccess(r.Header, s.config.token) {
 		localError(summary, http.StatusUnauthorized)
 		return
@@ -117,6 +114,25 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.forward(summary, r, kind)
 }
 
+// finishRequest records stats and the access log for one request. It must be
+// deferred directly: ReverseProxy aborts a response that breaks after its
+// headers were sent with http.ErrAbortHandler, which is recovered here,
+// recorded, and re-raised for net/http to handle.
+func (s *Server) finishRequest(ctx context.Context, summary *responseSummary, method, kind string) {
+	recovered := recover()
+	err, _ := recovered.(error)
+	if summary.usage != nil {
+		summary.usage.finish()
+	}
+	result := requestOutcome(summary, errors.Is(err, http.ErrAbortHandler), ctx.Err() != nil)
+	elapsed := time.Since(summary.start)
+	s.stats.record(kind, summary, result, elapsed)
+	s.logRequest(ctx, summary, method, kind, result, elapsed)
+	if recovered != nil {
+		panic(recovered)
+	}
+}
+
 func (s *Server) forward(w *responseSummary, r *http.Request, kind string) {
 	if !jsonRequest(r) {
 		localError(w, http.StatusUnsupportedMediaType)
@@ -153,7 +169,7 @@ func (s *Server) forward(w *responseSummary, r *http.Request, kind string) {
 	w.model = boundedLabel(id)
 	w.upstream = entry.label
 	target := entry.upstream.messages
-	if kind == "count_tokens" {
+	if kind == kindCountTokens {
 		target = entry.upstream.count
 	}
 	if target == nil {
@@ -177,7 +193,11 @@ func (s *Server) forward(w *responseSummary, r *http.Request, kind string) {
 	if entry.upstream.attempts > 1 {
 		state := &replay{body: body}
 		r = r.WithContext(context.WithValue(r.Context(), replayKey{}, state))
-		defer func() { w.retries = state.retries }()
+		defer func() { w.retries, w.retryReasons = state.retries, state.reasons }()
+	}
+	w.forwarded = true
+	if kind == kindMessages {
+		w.usage = &usageTap{}
 	}
 	s.proxies[target].ServeHTTP(w, r)
 }
@@ -199,9 +219,9 @@ func pathKind(r *http.Request) string {
 	case modelsPath:
 		return kindModels
 	case messagesPath:
-		return "messages"
+		return kindMessages
 	case countTokensPath:
-		return "count_tokens"
+		return kindCountTokens
 	default:
 		return kindUnknown
 	}
