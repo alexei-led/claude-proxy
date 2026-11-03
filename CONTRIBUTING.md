@@ -26,6 +26,7 @@ Windows is not a target because private-file rules use Unix ownership and no-fol
 
 Tests use local fake providers, synthetic history and temporary dummy keys.
 They do not run a real Claude Code session or classifier.
+Managed lifecycle tests build a dummy client command, use private temporary runtime directories and exercise real process exit, exec, shared startup and idle shutdown. No provider inference is involved.
 
 For repeated integration cases:
 

@@ -28,10 +28,10 @@ The proxy does not convert OpenAI APIs or repair incompatible conversation histo
 brew install alexei-led/tap/claude-proxy
 ```
 
-After configuring and manually starting the proxy, launch an opted-in client:
+After configuring a profile, launch an opted-in client. The matching proxy starts automatically and is shared by sessions using that configuration:
 
 ```sh
-claude-proxy connect --config /path/to/profile.json -- claude --model 'deepseek-flash[1m]'
+claude-proxy run --config /path/to/profile.json -- claude --model 'deepseek-flash[1m]'
 ```
 
 Homebrew is the default install method. It installs only the binary.

@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func newTransport() *http.Transport {
+func newTransport(limit int) *http.Transport {
 	return &http.Transport{
 		Proxy:                  nil,
 		DialContext:            (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
@@ -21,9 +21,9 @@ func newTransport() *http.Transport {
 		ResponseHeaderTimeout:  180 * time.Second,
 		ExpectContinueTimeout:  time.Second,
 		IdleConnTimeout:        90 * time.Second,
-		MaxIdleConns:           16,
-		MaxIdleConnsPerHost:    maxInflight,
-		MaxConnsPerHost:        maxInflight,
+		MaxIdleConns:           limit * 2,
+		MaxIdleConnsPerHost:    limit,
+		MaxConnsPerHost:        limit,
 		MaxResponseHeaderBytes: maxHeaderBytes,
 		DisableCompression:     true,
 		ForceAttemptHTTP2:      true,

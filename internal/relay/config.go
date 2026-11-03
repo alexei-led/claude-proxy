@@ -3,6 +3,7 @@ package relay
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -32,7 +34,13 @@ type modelConfig struct {
 	Upstream    string `json:"upstream"`
 	DisplayName string `json:"display_name,omitempty"`
 }
+type runtimeConfig struct {
+	IdleTimeout string `json:"idle_timeout,omitempty"`
+	MaxInflight *int   `json:"max_inflight,omitempty"`
+}
+
 type fileConfig struct {
+	Runtime         runtimeConfig             `json:"runtime,omitempty"`
 	Version         int                       `json:"version"`
 	Profile         string                    `json:"profile"`
 	Listen          string                    `json:"listen"`
@@ -54,10 +62,13 @@ type model struct {
 
 // Config is a validated, immutable snapshot of one profile.
 type Config struct {
-	profile string
-	listen  string
-	token   string
-	models  map[string]model
+	profile     string
+	listen      string
+	token       string
+	models      map[string]model
+	idleTimeout time.Duration
+	concurrency int
+	fingerprint [32]byte
 }
 
 // Profile returns the selected profile label.
@@ -112,7 +123,11 @@ func LoadConfig(path string) (*Config, error) {
 		}
 		compiled[label] = route
 	}
-	config := &Config{profile: raw.Profile, listen: raw.Listen, token: token, models: make(map[string]model, len(raw.Models))}
+	idle, limit, err := runtimeSettings(raw.Runtime)
+	if err != nil {
+		return nil, err
+	}
+	config := &Config{profile: raw.Profile, listen: raw.Listen, token: token, models: make(map[string]model, len(raw.Models)), idleTimeout: idle, concurrency: limit}
 	for id, entry := range raw.Models {
 		route, ok := compiled[entry.Upstream]
 		if id == "" || !ok {
@@ -120,6 +135,19 @@ func LoadConfig(path string) (*Config, error) {
 		}
 		config.models[id] = model{upstream: route, label: entry.Upstream, displayName: entry.DisplayName}
 	}
+	keys := make(map[string]string, len(compiled))
+	for name, entry := range compiled {
+		keys[name] = entry.key
+	}
+	snapshot, err := json.Marshal(struct {
+		Config fileConfig
+		Token  string
+		Keys   map[string]string
+	}{raw, token, keys})
+	if err != nil {
+		return nil, errors.New("cannot identify configuration snapshot")
+	}
+	config.fingerprint = sha256.Sum256(snapshot)
 	return config, nil
 }
 
@@ -145,6 +173,9 @@ func readConfig(path string) (fileConfig, error) {
 	}
 	if raw.AccessTokenFile == "" || len(raw.Models) == 0 || len(raw.Upstreams) == 0 {
 		return fileConfig{}, errors.New("configuration requires an access token, upstreams and models")
+	}
+	if _, _, err := runtimeSettings(raw.Runtime); err != nil {
+		return fileConfig{}, err
 	}
 	return raw, nil
 }
@@ -219,8 +250,14 @@ func validateConfigJSON(body []byte) error {
 		return errors.New("configuration must contain one object")
 	}
 	root, ok := value.(map[string]any)
-	if !ok || !onlyFields(root, "version", "profile", "listen", "access_token_file", "upstreams", "models") {
+	if !ok || !onlyFields(root, "version", "profile", "listen", "access_token_file", "upstreams", "models", "runtime") {
 		return errors.New("unknown configuration fields")
+	}
+	if value, exists := root["runtime"]; exists {
+		runtime, ok := value.(map[string]any)
+		if !ok || !onlyFields(runtime, "idle_timeout", "max_inflight") {
+			return errors.New("unknown runtime fields")
+		}
 	}
 	upstreams, ok := root["upstreams"].(map[string]any)
 	if !ok {

@@ -28,5 +28,9 @@
       "upstream": "deepseek",
       "display_name": "DeepSeek Flash"
     }
+  },
+  "runtime": {
+    "idle_timeout": "5m",
+    "max_inflight": 32
   }
 }

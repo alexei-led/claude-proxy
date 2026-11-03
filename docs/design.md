@@ -1,6 +1,6 @@
 # Architecture
 
-claude-proxy is a foreground process for one local profile.
+claude-proxy serves one immutable local profile per process. It can run in the foreground or as a launcher-managed broker.
 It forwards native Anthropic requests to explicitly configured upstreams.
 Model selection stays with the client or model-router.
 
@@ -20,12 +20,12 @@ See [verification](verification.md) for evidence and open acceptance gates.
 | D6  | Exact native model IDs, with no proxy aliases or model rewriting                    |
 | D7  | No retries, replay or provider fallback                                             |
 | D8  | Loopback listener and a separate local access token                                 |
-| D9  | Manual foreground operation, with no automatic startup or reload                    |
+| D9  | Explicit launcher-managed startup or manual operation; no login service or hot reload                    |
 | D10 | Process-local client configuration, with existing login and profile files unchanged |
 
 The proxy has no classifier, database, cache store, dashboard or provider SDK.
-An optional `connect` CLI helper prepares a child process; it never starts the server.
-Its configuration reader opens only the selected configuration and local token, not upstream credentials.
+`run` discovers or starts a private managed broker and registers the client process before exec. `connect` attaches to an already started foreground server.
+The managed generation snapshots only the selected configuration and referenced credentials. The attach-only `connect` reader still opens only that configuration and its local token.
 It does not manage OAuth login, refresh or account rotation.
 It does not execute tools or add missing provider capabilities.
 
@@ -158,3 +158,11 @@ Rollback cannot retract history already sent or provider charges already incurre
 Test definitions and current evidence are in [verification](verification.md#coverage).
 Pending work is in the [implementation plan](plans/implement-claude-proxy.md).
 No design note authorizes a live call, service installation or publication.
+
+## Managed lifecycle
+
+A private same-user control socket owns process registrations. Per-generation startup locking prevents duplicate brokers. The client registers its PID before exec; macOS exit notifications and Linux birth identity checks distinguish live clients from reused numeric PIDs. Uncertain tracking keeps the broker alive.
+
+Idle shutdown checks registrations and forwarding under synchronized admission. A new session resets the timer. Draining rejects new forwarding while existing work is never treated as idle. A new binary or configuration/credential snapshot starts a separate generation on another loopback port; old sessions are not moved.
+
+Broker startup uses a short-lived starter so the OS reaps detached brokers rather than leaving unwaited children attached to Claude. Runtime directory and files are private and owner-validated. Only a startup-lock holder removes stale sockets, preventing a retiring broker from unlinking its replacement.

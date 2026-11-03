@@ -1,6 +1,6 @@
 # User guide
 
-Configure Claude Code with a manually started local proxy.
+Configure Claude Code with an automatically started per-profile local proxy, or use manual mode when needed.
 This recipe also prepares an optional mixed model-router profile.
 The proxy does not require the Mod for direct native model selection.
 No extra launcher is required.
@@ -30,7 +30,7 @@ The trust command permits Homebrew to load this formula's Ruby code.
 Older Homebrew versions without that command do not need it.
 
 The formula installs a prebuilt macOS/Linux binary for ARM64 or AMD64.
-It creates no configuration, credentials, service or automatic startup.
+Installation creates no configuration, credentials or service and starts nothing at install or login. `run` starts a managed broker only when invoked.
 The commands below use `claude-proxy` from PATH.
 
 [Direct binaries](https://github.com/alexei-led/claude-proxy/releases) and
@@ -126,13 +126,13 @@ examples_dir=$(mktemp -d "${TMPDIR:-/tmp}/claude-proxy-examples.XXXXXX")
   set -eu
   for file in personal.json work.json model-proxy-router.json; do
     curl --fail --silent --show-error --location \
-      "https://raw.githubusercontent.com/alexei-led/claude-proxy/v0.1.3/examples/$file" \
+      "https://raw.githubusercontent.com/alexei-led/claude-proxy/v0.1.5/examples/$file" \
       --output "$examples_dir/$file"
   done
 )
 ```
 
-These examples are pinned to the v0.1.3 two-provider examples.
+These examples are pinned to the v0.1.5 managed-lifecycle examples.
 For a source checkout, use `examples_dir="$PWD/examples"` instead.
 Review the downloaded files before copying them into your private directory.
 
@@ -180,7 +180,28 @@ Use the [private-file rules](configuration.md#private-files).
 The proxy reads only this configuration's referenced secrets.
 It does not read Claude OAuth stores.
 
-## 4. Start the proxy
+## 4. Choose automatic or manual startup
+
+For normal sessions, skip the manual server and catalog commands below and use `run` from another shell with the selected account directory:
+
+```sh
+claude-proxy run --config "$proxy_config" -- claude --model 'deepseek-flash[1m]'
+```
+
+The first session starts its broker; later sessions with the same configuration and executable reuse it. Personal and work configurations remain separate. Agents waiting for input or tools keep their registration. Five minutes after all clients and requests finish, the example broker exits.
+
+A Homebrew upgrade is used by the next new session. Existing sessions keep their old generation until they exit. This does not run package upgrades automatically. Managed policy still applies and saved OAuth is unchanged.
+
+Inspect or stop the current generation without starting one:
+
+```sh
+claude-proxy status --config "$proxy_config"
+claude-proxy stop --config "$proxy_config"
+```
+
+Stop refuses if clients or requests remain. Detached clients need their own registration; automatic process discovery is not supported.
+
+### Manual server alternative
 
 Run these commands in the first terminal:
 
@@ -235,7 +256,13 @@ Catalog success does not prove provider access or OAuth compatibility.
 
 ## 6. Start the opted-in session
 
-The simplest launch uses the same binary from another terminal:
+For automatic broker startup and reuse:
+
+```sh
+claude-proxy run --config "$proxy_config" -- claude --model 'deepseek-flash[1m]'
+```
+
+For an already running manual server instead:
 
 ```sh
 claude-proxy connect --config "$proxy_config" -- claude --model 'deepseek-flash[1m]'
@@ -306,7 +333,7 @@ Do not rename models or replace OAuth to bypass those limits.
 ## Stop and rollback
 
 1. Exit the opted-in Claude Code session.
-2. Stop the proxy with Ctrl-C or SIGTERM.
+2. Managed brokers close after their last client and the configured idle window. To close an already idle current broker sooner, use `claude-proxy stop --config "$proxy_config"`. Stop a manually started foreground server with Ctrl-C or SIGTERM.
 3. Start the normal client command with its original connection configuration and router profile.
 4. If you exported variables elsewhere, restore their previous values first.
 
