@@ -54,7 +54,7 @@ The parser rejects null values, extra JSON values and unsupported versions.
 
 ### Discovery and ports
 
-Both foreground and managed servers register in the same private control registry. Matching means the canonical configuration path, immutable configuration/credential snapshot and installed executable match; the catalog alone is not proof of identity. Servers from older versions without foreground registration need one restart after upgrading. Unknown processes listening on a port are never adopted or killed.
+Both foreground and managed servers register in the same private control registry. Matching means the canonical configuration path, immutable configuration/credential snapshot and installed executable match; the catalog alone is not proof of identity. Servers from older versions without foreground registration need one restart after upgrading. A missing current-generation registration does not prove an older proxy is stopped. In that case `status` makes a bounded TCP-only observation of the configured listener, sends no credentials or HTTP request, and clearly labels an occupied port as unverified. Older managed generations may use other ports. Unknown processes listening on a port are never adopted or killed.
 
 Managed servers bind a free loopback port. Foreground servers bind `listen`. The launcher asks the registry for the actual address and passes it only to its child; no port edits or guessing are needed. Different configurations have separate identities and local tokens. For multiple foreground configurations, select distinct `listen` ports; a collision fails clearly rather than attaching to another config.
 

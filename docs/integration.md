@@ -354,6 +354,7 @@ CAUTION: Rollback cannot retract history already sent or provider charges alread
 | Router unavailable                 | Make sure that the provider identifier, configuration directory, profile and classifier are correct |
 | Catalog model never selected       | Add its metadata and rules to the mixed router profile                                              |
 | Upstream rejects history or effort | Exclude that provider combination until approved acceptance succeeds                                |
+| No matching registration           | The installed binary checks its own generation. Older/manual servers may still be alive; an occupied configured address is not verified as the same proxy. Restart an old manual server only when its clients can be interrupted. |
 | Connection failure                 | Examine the endpoint, system TLS trust and network access                                           |
 | Uncertain savings                  | Do not treat router estimates as provider invoices                                                  |
 
