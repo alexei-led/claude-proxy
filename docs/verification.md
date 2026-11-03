@@ -23,8 +23,10 @@ Release preparation does not authorize a tag or external publication.
 **Controlled experiments:** supported by the exact local and live cases recorded here.
 Use non-sensitive data and explicitly approved destinations.
 
-**Stable release:** not ready.
-OAuth refresh, billing and wider provider/history compatibility remain open.
+**Publication policy:** version tags publish regular GitHub releases.
+Existing published versions can be promoted through the guarded manual workflow.
+Release classification does not expand the compatibility evidence: OAuth refresh,
+billing and wider provider/history compatibility remain open.
 
 The v0.1.0 hosted runs passed on commit `5127d7f`:
 
