@@ -19,7 +19,7 @@ The proxy forwards the original request body and response stream.
 Providers must support the native Anthropic API.
 The proxy does not convert OpenAI APIs or repair incompatible conversation history.
 
-> **Experimental:** [scoped live results](docs/verification.md#live-acceptance) cover specific client/model combinations.
+> **Compatibility limits:** [scoped live results](docs/verification.md#live-acceptance) cover specific client/model combinations.
 > OAuth refresh, billing and untested provider combinations remain unverified.
 
 ## Install

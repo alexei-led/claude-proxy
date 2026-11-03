@@ -97,7 +97,11 @@ Only the publication job receives write access.
 
 Assets contain four binaries, LICENSE and SHA256SUMS.
 The publication job verifies checksums and uses the committed notes as its release body.
-It publishes with `--prerelease --latest=false`.
+Version tags publish regular releases and mark them latest.
+To promote an existing published version without rebuilding, run the
+**Promote existing release** workflow with its exact tag after explicit approval.
+The workflow backs up metadata before changing status and checks that the tag,
+notes and asset identities remain unchanged. It does not update the Homebrew formula.
 After publication, a separate read-only job dispatches the exact version to
 `alexei-led/homebrew-tap` with repository secret `TAP_GITHUB_TOKEN`.
 The shared tap workflow calculates hashes from the published assets and updates the formula.

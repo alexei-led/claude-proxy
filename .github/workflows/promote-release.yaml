@@ -1,0 +1,65 @@
+name: Promote existing release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing published version to mark as a regular, latest release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-refs/tags/${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote verified existing release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # Change only the existing release's classification.
+    env:
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Validate and back up existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > release-before.json
+          jq --exit-status --arg tag "$RELEASE_TAG" '
+            .tag_name == $tag and .name == $tag and .draft == false
+            and any(.assets[]; .name == "SHA256SUMS")
+          ' release-before.json
+      - name: Preserve release metadata
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-metadata-before
+          path: release-before.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Promote and verify unchanged content
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release edit "$RELEASE_TAG" --verify-tag --prerelease=false --latest
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > release-after.json
+          jq --exit-status --slurpfile before release-before.json '
+            def identity: {
+              id, tag_name, name, target_commitish, body,
+              assets: ([.assets[] | {id, name, size, digest}] | sort_by(.id))
+            };
+            .draft == false and .prerelease == false
+            and (identity == ($before[0] | identity))
+          ' release-after.json
+          gh api "repos/$GH_REPO/releases/latest" |
+            jq --exit-status --arg tag "$RELEASE_TAG" '.tag_name == $tag'
