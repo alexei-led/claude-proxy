@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"syscall"
 	"time"
 
 	"github.com/alexei-led/claude-proxy/internal/relay"
@@ -49,7 +50,7 @@ func ServeForeground(ctx context.Context, path string, config *relay.Config, log
 	if err := removeStaleSocket(loc.socket); err != nil {
 		return err
 	}
-	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp4", config.Listen())
+	listener, err := listenForeground(startup, config.Listen(), (&net.ListenConfig{}).Listen)
 	if err != nil {
 		return errors.New("cannot bind configured loopback listener; inspect the port or restart an older unregistered proxy")
 	}
@@ -62,4 +63,23 @@ func ServeForeground(ctx context.Context, path string, config *relay.Config, log
 	logger.Info("starting", "profile", config.Profile(), "listen", listener.Addr().String(), "pid", os.Getpid(), "mode", ModeManual, "version", buildVersion())
 	defer logger.Info("stopped", "profile", config.Profile(), "mode", ModeManual)
 	return serveBroker(ctx, config, relay.NewServer(config, logger), control, listener, loc.identity, ModeManual, unlock)
+}
+
+// A retiring registered server can close control just before releasing TCP.
+// These are bounded local startup retries, never provider request retries.
+func listenForeground(ctx context.Context, address string, bind func(context.Context, string, string) (net.Listener, error)) (net.Listener, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	for {
+		listener, err := bind(ctx, "tcp4", address)
+		if err == nil {
+			return listener, nil
+		}
+		if !errors.Is(err, syscall.EADDRINUSE) {
+			return nil, err
+		}
+		if err := pause(ctx, 25*time.Millisecond); err != nil {
+			return nil, err
+		}
+	}
 }

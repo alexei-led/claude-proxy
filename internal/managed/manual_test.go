@@ -1,12 +1,14 @@
 package managed
 
 import (
+	"context"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -137,5 +139,43 @@ func TestManualModeNeverUsesIdleTimeout(t *testing.T) {
 	now := time.Now()
 	if state.tick(now, time.Millisecond) || state.tick(now.Add(time.Hour), time.Millisecond) {
 		t.Fatal("manual server auto-closed")
+	}
+}
+
+func TestForegroundBindWaitsForRetiringListener(t *testing.T) {
+	calls := 0
+	bind := func(ctx context.Context, network, address string) (net.Listener, error) {
+		calls++
+		if calls < 3 {
+			return nil, &net.OpError{Op: "listen", Net: network, Err: syscall.EADDRINUSE}
+		}
+		return (&net.ListenConfig{}).Listen(ctx, network, address)
+	}
+	listener, err := listenForeground(t.Context(), "127.0.0.1:0", bind)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = listener.Close() }()
+	if calls != 3 {
+		t.Fatal("retiring listener was not retried")
+	}
+}
+
+func TestForegroundBindRefusesOtherErrorsAndHonorsCancellation(t *testing.T) {
+	calls := 0
+	denied := func(context.Context, string, string) (net.Listener, error) { calls++; return nil, syscall.EACCES }
+	if listener, err := listenForeground(t.Context(), "127.0.0.1:1", denied); err == nil {
+		_ = listener.Close()
+		t.Fatal("bind permission failure accepted")
+	}
+	if calls != 1 {
+		t.Fatal("non-conflict bind failure retried")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	busy := func(context.Context, string, string) (net.Listener, error) { return nil, syscall.EADDRINUSE }
+	if listener, err := listenForeground(ctx, "127.0.0.1:1", busy); err == nil {
+		_ = listener.Close()
+		t.Fatal("canceled bind accepted")
 	}
 }
