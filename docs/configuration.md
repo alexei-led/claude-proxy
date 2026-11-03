@@ -66,14 +66,17 @@ A repeated foreground start reports an existing matching server and exits withou
 {
   "runtime": {
     "idle_timeout": "5m",
-    "max_inflight": 32
+    "max_inflight": 32,
+    "response_header_timeout": "180s"
   }
 }
 ```
 
+`response_header_timeout` defaults to `180s` and accepts 1 second to 10 minutes. It is how long one upstream try may take to start answering. Raise it for a provider that queues requests under load. It covers the wait after the request was sent; a dial or TLS handshake that stalls fails with 504 after its own 10 seconds.
+
 `idle_timeout` defaults to `5m`; `0` disables managed idle shutdown. The timer runs only with zero living client registrations and zero active forwarded requests. New registrations or forwarding reset it. Unknown process tracking keeps the broker alive. Manually started servers do not use this timer.
 
-`max_inflight` defaults to 8 and accepts integers 1 through 64. It controls forwarding admission and per-host transport connections in both modes. Excess requests receive 429 immediately; there is no hidden queue or retry. The examples use 32 after a fake-provider check with 32 simultaneous 1 MiB bodies. At the 32 MiB per-request ceiling, 32 admitted bodies alone can require about 1 GiB before other allocations. Provider limits still apply.
+`max_inflight` defaults to 8 and accepts integers 1 through 64. It controls forwarding admission and per-host transport connections in both modes. Excess requests receive 429 immediately; there is no hidden queue. The examples use 32 after a fake-provider check with 32 simultaneous 1 MiB bodies. At the 32 MiB per-request ceiling, 32 admitted bodies alone can require about 1 GiB before other allocations. Provider limits still apply.
 
 Managed runtime files live in an owner-only `claude-proxy` directory below the OS user cache directory, or `XDG_RUNTIME_DIR` when set. Locks, control sockets and bounded private logs are machine state, not configuration. The selected runtime parent must be absolute and the control socket path must fit within 100 bytes. Set a shorter private `XDG_RUNTIME_DIR` if needed.
 
@@ -94,6 +97,9 @@ The label is not a model prefix.
 | `count_tokens_url` | No                   | Complete URL for native token-count requests        |
 | `auth.mode`        | Yes                  | One of the modes in the next table                  |
 | `auth.key_file`    | For server-key modes | File that contains the selected provider's key      |
+| `retry`            | No                   | `{"max_attempts": N}`, see below                    |
+
+`retry.max_attempts` is the total number of tries per request, from 1 to 5. Omit `retry`, or use 1, for no retry. The relay re-sends only after an upstream 503 or 529 answer, or a failed connection dial, and waits 0.25 to 4 seconds between tries with jitter. It honors a `Retry-After`, in seconds or as an HTTP date, of up to 4 seconds and passes a longer one to the client. It never retries a timeout or a reset after the request was sent. The request log shows `retried ×N` when it retried. Each try gets its own `response_header_timeout`.
 
 Endpoint URLs need an absolute path and host.
 HTTPS is required, except for HTTP at a literal loopback IP.
@@ -214,14 +220,15 @@ Messages contain fixed text, not request values or secrets.
 | 415    | Unsupported media type or request encoding                                 |
 | 429    | All forwarding slots are occupied                                          |
 | 502    | Upstream connection, TLS or protocol error                                 |
-| 504    | Upstream response-header timeout                                           |
+| 499    | The client hung up before the upstream answered (logged only)              |
+| 504    | Upstream dial, TLS handshake or response-header timeout                    |
 
 The standard HTTP server can reject framing before the handler runs.
 Those responses use the standard server format, including 431 for excessive headers.
 
 ## Resource limits
 
-Most limits are implementation constants. Forwarding concurrency is configurable through `runtime.max_inflight`.
+Most limits are implementation constants. Forwarding concurrency is configurable through `runtime.max_inflight`, and the upstream response-header wait through `runtime.response_header_timeout`.
 
 | Resource                      | Limit                                          |
 | ----------------------------- | ---------------------------------------------- |
@@ -232,7 +239,7 @@ Most limits are implementation constants. Forwarding concurrency is configurable
 | Header read                   | 5 seconds                                      |
 | Body read                     | 30 seconds                                     |
 | Dial / TLS handshake          | 10 seconds each                                |
-| Upstream response-header wait | 180 seconds                                    |
+| Upstream response-header wait | Default 180 seconds; configurable 1s–10m, per try |
 | Graceful shutdown             | 30 seconds, then active connections close      |
 
 There is no whole-generation or stream-idle timeout.

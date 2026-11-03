@@ -53,6 +53,17 @@ func TestConfig(t *testing.T) {
 		{"mode", "oauth_passthrough", "magic", false},
 		{"inline secret", oauthFragment, `"mode":"bearer","key":"bad"`, false},
 		{"contradiction", oauthFragment, `"mode":"oauth_passthrough","key_file":"unused"`, false},
+		{"retry", urlFragment, `"retry":{"max_attempts":3},` + urlFragment, true},
+		{"retry off", urlFragment, `"retry":{"max_attempts":1},` + urlFragment, true},
+		{"retry zero", urlFragment, `"retry":{"max_attempts":0},` + urlFragment, false},
+		{"retry too many", urlFragment, `"retry":{"max_attempts":6},` + urlFragment, false},
+		{"retry empty", urlFragment, `"retry":{},` + urlFragment, false},
+		{"retry unknown field", urlFragment, `"retry":{"max_attempts":2,"delay":"1s"},` + urlFragment, false},
+		{"retry null", urlFragment, `"retry":null,` + urlFragment, false},
+		{"header timeout", versionFragment, `"runtime":{"response_header_timeout":"30s"},"version":1`, true},
+		{"header timeout too short", versionFragment, `"runtime":{"response_header_timeout":"500ms"},"version":1`, false},
+		{"header timeout too long", versionFragment, `"runtime":{"response_header_timeout":"11m"},"version":1`, false},
+		{"header timeout garbage", versionFragment, `"runtime":{"response_header_timeout":"soon"},"version":1`, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -16,6 +16,9 @@
       "auth": {
         "mode": "bearer",
         "key_file": "secrets/deepseek-personal.key"
+      },
+      "retry": {
+        "max_attempts": 3
       }
     }
   },

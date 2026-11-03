@@ -12,13 +12,13 @@ import (
 	"time"
 )
 
-func newTransport(limit int) *http.Transport {
+func newTransport(limit int, headerWait time.Duration) *http.Transport {
 	return &http.Transport{
 		Proxy:                  nil,
 		DialContext:            (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
 		TLSClientConfig:        &tls.Config{MinVersion: tls.VersionTLS12},
 		TLSHandshakeTimeout:    10 * time.Second,
-		ResponseHeaderTimeout:  180 * time.Second,
+		ResponseHeaderTimeout:  headerWait,
 		ExpectContinueTimeout:  time.Second,
 		IdleConnTimeout:        90 * time.Second,
 		MaxIdleConns:           limit * 2,
@@ -27,12 +27,19 @@ func newTransport(limit int) *http.Transport {
 		MaxResponseHeaderBytes: maxHeaderBytes,
 		DisableCompression:     true,
 		ForceAttemptHTTP2:      true,
+		// Probe an idle HTTP/2 connection so one that died silently (sleep, VPN switch)
+		// is dropped in seconds, not after the response header timeout.
+		HTTP2: &http.HTTP2Config{SendPingTimeout: 30 * time.Second, PingTimeout: 10 * time.Second},
 	}
 }
 
 func (s *Server) proxy(route *upstream, target *url.URL) *httputil.ReverseProxy {
+	var transport http.RoundTripper = s.transport
+	if route.attempts > 1 {
+		transport = &retrier{base: s.transport, attempts: route.attempts, delay: retryBaseDelay}
+	}
 	return &httputil.ReverseProxy{
-		Transport:     s.transport,
+		Transport:     transport,
 		FlushInterval: -1,
 		ErrorLog:      log.New(io.Discard, "", 0),
 		Rewrite: func(pr *httputil.ProxyRequest) {
@@ -58,10 +65,14 @@ func (s *Server) proxy(route *upstream, target *url.URL) *httputil.ReverseProxy 
 			response.Body = &cleanTrailers{ReadCloser: response.Body, response: response}
 			return nil
 		},
-		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			status := http.StatusBadGateway
 			var networkError net.Error
-			if errors.As(err, &networkError) && networkError.Timeout() {
+			switch {
+			case r.Context().Err() != nil:
+				// The client left; this is not an upstream failure.
+				status = statusClientClosed
+			case errors.As(err, &networkError) && networkError.Timeout():
 				status = http.StatusGatewayTimeout
 			}
 			localError(w, status)

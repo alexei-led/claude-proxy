@@ -13,6 +13,7 @@ type responseSummary struct {
 	category     string
 	model        string
 	upstream     string
+	retries      int
 }
 
 func (w *responseSummary) Unwrap() http.ResponseWriter { return w.ResponseWriter }
@@ -79,9 +80,11 @@ func errorDetails(status int) (string, string) {
 	case http.StatusTooManyRequests:
 		return "rate_limit_error", "Relay is at capacity."
 	case http.StatusServiceUnavailable:
-		return "api_error", "Relay is shutting down."
+		return apiError, "Relay is shutting down."
+	case statusClientClosed:
+		return apiError, "Client closed the request."
 	case http.StatusBadGateway:
-		return "api_error", "Upstream connection failed."
+		return apiError, "Upstream connection failed."
 	case http.StatusGatewayTimeout:
 		return "timeout_error", "Upstream response timed out."
 	default:

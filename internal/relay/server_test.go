@@ -18,6 +18,7 @@ const (
 	testSecret      = "dummy-key"
 	versionFragment = `"version":1`
 	oauthFragment   = `"mode":"oauth_passthrough"`
+	urlFragment     = `"messages_url"`
 )
 
 func testConfig(t *testing.T) *Config {

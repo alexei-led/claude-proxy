@@ -7,23 +7,48 @@ import (
 	"time"
 )
 
-func runtimeSettings(raw runtimeConfig) (time.Duration, int, error) {
-	idle := 5 * time.Minute
+const (
+	defaultHeaderWait = 180 * time.Second
+	maxHeaderWait     = 10 * time.Minute
+)
+
+type runtimeValues struct {
+	idle       time.Duration
+	limit      int
+	headerWait time.Duration
+}
+
+func runtimeSettings(raw runtimeConfig) (runtimeValues, error) {
+	values := runtimeValues{idle: 5 * time.Minute, limit: maxInflight, headerWait: defaultHeaderWait}
 	if raw.IdleTimeout != "" {
 		var err error
-		idle, err = time.ParseDuration(raw.IdleTimeout)
-		if err != nil || idle < 0 {
-			return 0, 0, errors.New("invalid managed idle timeout")
+		values.idle, err = time.ParseDuration(raw.IdleTimeout)
+		if err != nil || values.idle < 0 {
+			return runtimeValues{}, errors.New("invalid managed idle timeout")
 		}
 	}
-	limit := maxInflight
 	if raw.MaxInflight != nil {
-		limit = *raw.MaxInflight
-		if limit < 1 || limit > 64 {
-			return 0, 0, errors.New("runtime concurrency must be between 1 and 64")
+		values.limit = *raw.MaxInflight
+		if values.limit < 1 || values.limit > 64 {
+			return runtimeValues{}, errors.New("runtime concurrency must be between 1 and 64")
 		}
 	}
-	return idle, limit, nil
+	if raw.ResponseHeaderTimeout != "" {
+		var err error
+		values.headerWait, err = time.ParseDuration(raw.ResponseHeaderTimeout)
+		if err != nil || values.headerWait < time.Second || values.headerWait > maxHeaderWait {
+			return runtimeValues{}, errors.New("response header timeout must be between 1s and 10m")
+		}
+	}
+	return values, nil
+}
+
+// ResponseHeaderWait returns how long one upstream attempt may take to answer with headers.
+func (c *Config) ResponseHeaderWait() time.Duration {
+	if c.headerWait == 0 {
+		return defaultHeaderWait
+	}
+	return c.headerWait
 }
 
 // IdleTimeout returns the managed broker's zero-session timeout.
