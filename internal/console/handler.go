@@ -76,6 +76,9 @@ func (handler *Handler) Handle(_ context.Context, record slog.Record) error {
 		elapsed := value("elapsed")
 		if duration := values["elapsed"]; duration.Kind() == slog.KindDuration {
 			elapsed = duration.Duration().Round(time.Millisecond).String()
+			if duration.Duration() > 0 && duration.Duration() < time.Millisecond {
+				elapsed = "<1ms"
+			}
 		}
 		message = fmt.Sprintf("%-4s %-12s %-36s %9s", value("method"), value("path"), route, elapsed)
 		if category := value("category"); category != "" && category != "<nil>" {

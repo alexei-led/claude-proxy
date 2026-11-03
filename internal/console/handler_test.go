@@ -82,3 +82,12 @@ func TestHandlerAttributesDoNotMutateParent(t *testing.T) {
 		t.Fatal("child attributes mutated parent handler")
 	}
 }
+
+func TestSubMillisecondRequestsRemainReadable(t *testing.T) {
+	var output bytes.Buffer
+	logger := slog.New(New(&output, false))
+	logger.Info("request", "method", "GET", "path", "models", "status", 200, "model", "", "upstream", "", "elapsed", 100*time.Microsecond, "category", "")
+	if !strings.Contains(output.String(), "<1ms") {
+		t.Fatal("short request was displayed as zero seconds")
+	}
+}
