@@ -24,7 +24,7 @@ See [verification](verification.md) for evidence and open acceptance gates.
 | D10 | Process-local client configuration, with existing login and profile files unchanged |
 
 The proxy has no classifier, database, cache store, dashboard or provider SDK.
-`run` discovers or starts a private managed broker and registers the client process before exec. `connect` attaches to an already started foreground server.
+`run` discovers or starts a private managed broker and registers the client process before exec. `connect` attaches to an already started foreground server. Matching foreground servers are also discoverable by `run`; a repeated manual start reports an existing server without changing its mode.
 The managed generation snapshots only the selected configuration and referenced credentials. The attach-only `connect` reader still opens only that configuration and its local token.
 It does not manage OAuth login, refresh or account rotation.
 It does not execute tools or add missing provider capabilities.
@@ -161,7 +161,7 @@ No design note authorizes a live call, service installation or publication.
 
 ## Managed lifecycle
 
-A private same-user control socket owns process registrations. Per-generation startup locking prevents duplicate brokers. The client registers its PID before exec; macOS exit notifications and Linux birth identity checks distinguish live clients from reused numeric PIDs. Uncertain tracking keeps the broker alive.
+A private same-user control socket owns process registrations for both manual and managed servers. Foreground mode retains explicit ownership and never applies the managed idle timer. Per-generation startup locking prevents duplicate brokers. The client registers its PID before exec; macOS exit notifications and Linux birth identity checks distinguish live clients from reused numeric PIDs. Uncertain tracking keeps the broker alive.
 
 Idle shutdown checks registrations and forwarding under synchronized admission. A new session resets the timer. Draining rejects new forwarding while existing work is never treated as idle. A new binary or configuration/credential snapshot starts a separate generation on another loopback port; old sessions are not moved.
 

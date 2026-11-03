@@ -188,7 +188,7 @@ For normal sessions, skip the manual server and catalog commands below and use `
 claude-proxy run --config "$proxy_config" -- claude --model 'deepseek-flash[1m]'
 ```
 
-The first session starts its broker; later sessions with the same configuration and executable reuse it. Personal and work configurations remain separate. Agents waiting for input or tools keep their registration. Five minutes after all clients and requests finish, the example broker exits.
+The first session starts its broker if none is registered; later sessions with the same configuration and executable reuse it. A matching registered manual server is reused too, without enabling automatic shutdown. Personal and work configurations remain separate. Agents waiting for input or tools keep their registration. Five minutes after all clients and requests finish, the example broker exits.
 
 A Homebrew upgrade is used by the next new session. Existing sessions keep their old generation until they exit. This does not run package upgrades automatically. Managed policy still applies and saved OAuth is unchanged.
 
@@ -212,7 +212,7 @@ claude-proxy --config "$proxy_config"
 
 The first command performs local validation only.
 Wait for the `ready` record from the second command.
-Keep the process in the foreground.
+Keep the process in the foreground. Logs are readable, with terminal-only color (`NO_COLOR` disables it). The startup line shows the configured address and manual mode with auto-close off. This server is discoverable by `run`; it does not exit when clients close. Older foreground servers need one restart after upgrading to gain discovery.
 
 ## 5. Inspect the catalog
 

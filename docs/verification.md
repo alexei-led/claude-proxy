@@ -241,3 +241,9 @@ The managed lifecycle work adds process-backed sharing, private startup locking,
 A scoped native check used the feature binary and uninstalled chezmoi source launchers with temporary private configuration/runtime directories. Two personal Claude clients selected the personal Router file and shared one broker; a work client selected the work Router file and an independent broker. Closing one personal client kept its broker alive. Both brokers auto-closed after their remaining clients exited. Only `/router` status commands were used: the private broker logs contained zero forwarded generation POSTs. Existing saved OAuth and provider-key files were not copied or rewritten.
 
 Linux AMD64/ARM64 and macOS AMD64 cross-compilation succeeds locally; execution on other hosts belongs to hosted CI. The initial lifecycle/security review found an unobserved control-accept failure path. Bounded recoverable-error backoff, terminal-error propagation and regression checks were added. The follow-up review identified missing shutdown-path/handler-wait regression coverage; both cases now have direct tests. Installed-release acceptance remains a delivery gate.
+
+## Foreground discovery and console preparation
+
+Regression checks cover managed launch reuse of a foreground server's PID/port, duplicate foreground starts, unchanged managed ownership when a foreground invocation finds an existing broker, and manual mode ignoring the configured managed idle timeout. Manual and managed servers use the same generation identity and startup lock.
+
+Console checks cover readable lifecycle/request lines, redirected plain output, explicit ANSI status colors, terminal-control injection rejection and omitted credential attributes. A local pseudo-terminal check with dummy configuration verified real terminal color and NO_COLOR without inference or credentials. Background server logs remain JSON.

@@ -19,10 +19,15 @@ const (
 	operationRegister = "register"
 	operationStatus   = "status"
 	operationStop     = "stop"
+	// ModeManaged identifies a launcher-owned server eligible for idle shutdown.
+	ModeManaged = "managed"
+	// ModeManual identifies an explicitly owned foreground server.
+	ModeManual = "manual"
 )
 
 // Info reports one current-generation broker without credentials.
 type Info struct {
+	Mode      string `json:"mode"`
 	Address   string `json:"address"`
 	Identity  string `json:"identity"`
 	Version   string `json:"version"`

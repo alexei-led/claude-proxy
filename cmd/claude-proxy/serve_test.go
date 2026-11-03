@@ -31,6 +31,12 @@ func (h readyHandler) Handle(ctx context.Context, record slog.Record) error {
 }
 
 func TestRunServe(t *testing.T) {
+	runtime, err := os.MkdirTemp("/tmp", "cp-manual-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(runtime) })
+	t.Setenv("XDG_RUNTIME_DIR", runtime)
 	reserved, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
