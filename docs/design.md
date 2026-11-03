@@ -71,6 +71,9 @@ There is no plugin interface or general routing framework.
 Model-router selects a native ID and effort.
 Claude Code constructs the request.
 The proxy reads enough JSON to select an upstream, then forwards the original bytes.
+One exception: on server-key and `none` routes it removes `pattern` keywords from tool input schemas.
+Third-party providers validate those regexes in other dialects and reject the whole request;
+DeepSeek fails on Claude Code's `^[^\0]*$`. OAuth routes stay byte-exact.
 
 The proxy does not interpret conversation history.
 New client fields remain opaque unless they affect safe request framing.

@@ -130,6 +130,7 @@ Server-key and unauthenticated routes use this header allowlist:
 
 These routes receive no client OAuth, device, workspace or organization headers.
 All routes still receive the original body, including identity metadata.
+These routes lose only the `pattern` keywords in `tools[].input_schema`; see [HTTP endpoints](#http-endpoints).
 
 The server accepts only the configured Host and port.
 It rejects Origin, browser Fetch Metadata, cookies, proxy credentials and upgrades.
@@ -181,6 +182,10 @@ A request needs one top-level, nonempty string `model`.
 Malformed JSON and duplicate or case-conflicting model fields are invalid.
 
 The proxy forwards original body bytes, raw queries and upstream response bytes.
+On `bearer`, `x_api_key` and `none` routes it first removes every `pattern` schema keyword from tool input schemas,
+because third-party providers reject regexes Anthropic accepts.
+A property named `pattern` and data keywords such as `enum` or `default` stay intact.
+A request whose tool schemas hold no pattern keeps its original bytes.
 It does not parse SSE events, decompress responses or change native model IDs.
 An upstream 3xx, 4xx or 5xx response remains an upstream response.
 A broken stream ends without a synthetic completion or replay.

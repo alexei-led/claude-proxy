@@ -161,6 +161,8 @@ func (s *Server) forward(w *responseSummary, r *http.Request, kind string) {
 			localError(w, http.StatusUnauthorized)
 			return
 		}
+	} else {
+		body = stripToolPatterns(body)
 	}
 	// A non-replayable body prevents Transport from retrying a generation even
 	// when the client supplies an idempotency header.
