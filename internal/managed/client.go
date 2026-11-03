@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/alexei-led/claude-proxy/internal/relay"
 )
+
+var errNoRegistration = errors.New("no matching proxy registration")
 
 const (
 	operationRegister = "register"
@@ -104,7 +107,10 @@ func exchange(ctx context.Context, loc location, message request) (Info, error) 
 	dialer := net.Dialer{Timeout: time.Second}
 	connection, err := dialer.DialContext(ctx, "unix", loc.socket)
 	if err != nil {
-		return Info{}, errors.New("managed proxy is not running")
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED) {
+			return Info{}, errNoRegistration
+		}
+		return Info{}, errors.New("proxy control connection is unavailable")
 	}
 	defer func() { _ = connection.Close() }()
 	deadline := time.Now().Add(2 * time.Second)
@@ -165,7 +171,23 @@ func Status(ctx context.Context, path string, config *relay.Config) (Info, error
 	if err != nil {
 		return Info{}, err
 	}
-	return exchange(ctx, loc, request{Operation: operationStatus})
+	info, err := exchange(ctx, loc, request{Operation: operationStatus})
+	if !errors.Is(err, errNoRegistration) {
+		return info, err
+	}
+	// A successful TCP connection is only a listening-port observation. Never
+	// send credentials or claim that an unregistered listener is this proxy.
+	connection, probeErr := (&net.Dialer{Timeout: 200 * time.Millisecond}).DialContext(ctx, "tcp4", config.Listen())
+	if connection != nil {
+		_ = connection.Close()
+	}
+	if ctx.Err() != nil {
+		return Info{}, errors.New("proxy status check canceled or timed out")
+	}
+	if probeErr == nil {
+		return Info{}, fmt.Errorf("no matching registration for selected config and installed %s; configured address is listening at %s (may be an older or manually started proxy; configuration/version not verified)", buildVersion(), config.Listen())
+	}
+	return Info{}, fmt.Errorf("no matching registration for selected config and installed %s; configured address %s could not be reached; other generations may use different ports", buildVersion(), config.Listen())
 }
 
 // Stop closes an idle current-generation broker; active clients are never interrupted.

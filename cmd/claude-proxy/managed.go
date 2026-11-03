@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	commandStatus        = "status"
 	commandStop          = "stop"
 	commandManagedStart  = "managed-start"
 	commandManagedBroker = "managed-broker"
@@ -84,7 +85,7 @@ func managedCommand(ctx context.Context, operation string, args []string) error 
 			return errors.New("managed generation identity is required")
 		}
 		return managed.Serve(ctx, *path, *identity)
-	case "status", commandStop:
+	case commandStatus, commandStop:
 		config, err := relay.LoadConfig(*path)
 		if err != nil {
 			return err

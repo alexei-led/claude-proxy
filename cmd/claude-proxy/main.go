@@ -25,7 +25,14 @@ func main() {
 	err := run(ctx, os.Args[1:], logger)
 	stop()
 	if err != nil {
-		logger.Error("startup failed", "category", err.Error())
+		message := "startup failed"
+		if len(os.Args) > 1 && os.Args[1] == commandStatus {
+			message = "status unavailable"
+		}
+		if len(os.Args) > 1 && os.Args[1] == commandStop {
+			message = "stop failed"
+		}
+		logger.Error(message, "category", err.Error())
 		os.Exit(1)
 	}
 }
@@ -37,7 +44,7 @@ func run(ctx context.Context, args []string, logger *slog.Logger) error {
 			return connect(ctx, args[1:])
 		case "run":
 			return managedRun(ctx, args[1:])
-		case commandManagedStart, commandManagedBroker, "status", commandStop:
+		case commandManagedStart, commandManagedBroker, commandStatus, commandStop:
 			return managedCommand(ctx, args[0], args[1:])
 		}
 	}
