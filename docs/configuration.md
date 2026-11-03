@@ -72,7 +72,7 @@ A repeated foreground start reports an existing matching server and exits withou
 }
 ```
 
-`response_header_timeout` defaults to `180s` and accepts 1 second to 10 minutes. It is how long one upstream try may take to start answering. Raise it for a provider that queues requests under load. The request ends with 504 only after this time.
+`response_header_timeout` defaults to `180s` and accepts 1 second to 10 minutes. It is how long one upstream try may take to start answering. Raise it for a provider that queues requests under load. It covers the wait after the request was sent; a dial or TLS handshake that stalls fails with 504 after its own 10 seconds.
 
 `idle_timeout` defaults to `5m`; `0` disables managed idle shutdown. The timer runs only with zero living client registrations and zero active forwarded requests. New registrations or forwarding reset it. Unknown process tracking keeps the broker alive. Manually started servers do not use this timer.
 
@@ -99,7 +99,7 @@ The label is not a model prefix.
 | `auth.key_file`    | For server-key modes | File that contains the selected provider's key      |
 | `retry`            | No                   | `{"max_attempts": N}`, see below                    |
 
-`retry.max_attempts` is the total number of tries per request, from 1 to 5. Omit `retry`, or use 1, for no retry. The relay re-sends only after an upstream 503 or 529 answer, or a failed connection dial, and waits 0.25 to 4 seconds between tries with jitter. It honors a `Retry-After` of up to 4 seconds and passes a longer one to the client. It never retries a timeout or a reset after the request was sent. The request log shows `retried ×N` when it retried. Each try gets its own `response_header_timeout`.
+`retry.max_attempts` is the total number of tries per request, from 1 to 5. Omit `retry`, or use 1, for no retry. The relay re-sends only after an upstream 503 or 529 answer, or a failed connection dial, and waits 0.25 to 4 seconds between tries with jitter. It honors a `Retry-After`, in seconds or as an HTTP date, of up to 4 seconds and passes a longer one to the client. It never retries a timeout or a reset after the request was sent. The request log shows `retried ×N` when it retried. Each try gets its own `response_header_timeout`.
 
 Endpoint URLs need an absolute path and host.
 HTTPS is required, except for HTTP at a literal loopback IP.
@@ -220,14 +220,15 @@ Messages contain fixed text, not request values or secrets.
 | 415    | Unsupported media type or request encoding                                 |
 | 429    | All forwarding slots are occupied                                          |
 | 502    | Upstream connection, TLS or protocol error                                 |
-| 504    | Upstream response-header timeout                                           |
+| 499    | The client hung up before the upstream answered (logged only)              |
+| 504    | Upstream dial, TLS handshake or response-header timeout                    |
 
 The standard HTTP server can reject framing before the handler runs.
 Those responses use the standard server format, including 431 for excessive headers.
 
 ## Resource limits
 
-Most limits are implementation constants. Forwarding concurrency is configurable through `runtime.max_inflight`.
+Most limits are implementation constants. Forwarding concurrency is configurable through `runtime.max_inflight`, and the upstream response-header wait through `runtime.response_header_timeout`.
 
 | Resource                      | Limit                                          |
 | ----------------------------- | ---------------------------------------------- |
@@ -238,7 +239,7 @@ Most limits are implementation constants. Forwarding concurrency is configurable
 | Header read                   | 5 seconds                                      |
 | Body read                     | 30 seconds                                     |
 | Dial / TLS handshake          | 10 seconds each                                |
-| Upstream response-header wait | 180 seconds                                    |
+| Upstream response-header wait | Default 180 seconds; configurable 1s–10m, per try |
 | Graceful shutdown             | 30 seconds, then active connections close      |
 
 There is no whole-generation or stream-idle timeout.

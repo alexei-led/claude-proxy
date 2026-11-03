@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,8 +20,10 @@ const (
 	retryBaseDelay   = 500 * time.Millisecond
 	// retryMaxDelay caps one backoff step and the longest Retry-After the relay waits
 	// for. Claude Code retries on its own, so a long relay wait only stalls it.
-	retryMaxDelay   = 4 * time.Second
-	retryDrainBytes = 64 << 10
+	retryMaxDelay = 4 * time.Second
+	// retryAfterCeiling bounds a parsed Retry-After before it becomes a Duration,
+	// which would otherwise overflow and wrap negative. Anything this long is passed through.
+	retryAfterCeiling = time.Hour
 )
 
 type replayKey struct{}
@@ -60,7 +63,8 @@ func (r *retrier) RoundTrip(req *http.Request) (*http.Response, error) {
 			return resp, err
 		}
 		if resp != nil {
-			_, _ = io.CopyN(io.Discard, resp.Body, retryDrainBytes)
+			// Close without reading: an upstream that sends 503 headers and then stalls
+			// must not hold the request. The cost is one connection that is not reused.
 			_ = resp.Body.Close()
 		}
 		timer := time.NewTimer(wait)
@@ -83,7 +87,7 @@ func (r *retrier) next(ctx context.Context, attempt int, resp *http.Response, er
 		if resp.StatusCode != http.StatusServiceUnavailable && resp.StatusCode != statusOverloaded {
 			return 0, false
 		}
-		if after, ok := retryAfter(resp.Header); ok {
+		if after, ok := retryAfter(resp.Header, time.Now()); ok {
 			if after > retryMaxDelay {
 				return 0, false
 			}
@@ -102,13 +106,24 @@ func (r *retrier) backoff(attempt int) time.Duration {
 	return d/2 + rand.N(d/2+1) // #nosec G404 -- Jitter needs spread, not unpredictability.
 }
 
-// retryAfter reads the delta-seconds form only; an HTTP date is ignored.
-func retryAfter(header http.Header) (time.Duration, bool) {
-	seconds, err := strconv.Atoi(header.Get("Retry-After"))
-	if err != nil || seconds < 0 {
+// retryAfter reads both RFC 9110 forms, delta-seconds and an HTTP date. An
+// unparseable value is ignored.
+func retryAfter(header http.Header, now time.Time) (time.Duration, bool) {
+	value := header.Get("Retry-After")
+	seconds, err := strconv.ParseInt(value, 10, 64)
+	switch {
+	case strings.HasPrefix(value, "-"):
+		return 0, false
+	case errors.Is(err, strconv.ErrRange):
+		return retryAfterCeiling, true
+	case err == nil:
+		return time.Duration(min(seconds, int64(retryAfterCeiling/time.Second))) * time.Second, true
+	}
+	at, err := http.ParseTime(value)
+	if err != nil {
 		return 0, false
 	}
-	return time.Duration(seconds) * time.Second, true
+	return min(max(at.Sub(now), 0), retryAfterCeiling), true
 }
 
 // retryAttempts validates the optional per-upstream retry block. One attempt means no retry.

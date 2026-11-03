@@ -99,7 +99,10 @@ func TestRetrierOutcomes(t *testing.T) {
 		{"200 is not retried", 3, []outcome{ok}, statusOK, false, 1, 0},
 		{"short Retry-After is honored", 3, []outcome{{status: statusBusy, retryAfter: "0"}, ok}, statusOK, false, 2, 1},
 		{"long Retry-After is passed through", 3, []outcome{{status: statusBusy, retryAfter: "60"}, ok}, statusBusy, false, 1, 0},
-		{"date Retry-After is ignored", 3, []outcome{{status: statusBusy, retryAfter: "Wed, 21 Oct 2026 07:28:00 GMT"}, ok}, statusOK, false, 2, 1},
+		{"future date Retry-After is passed through", 3, []outcome{{status: statusBusy, retryAfter: time.Now().Add(time.Minute).UTC().Format(http.TimeFormat)}, ok}, statusBusy, false, 1, 0},
+		{"past date Retry-After is retried", 3, []outcome{{status: statusBusy, retryAfter: "Wed, 21 Oct 2015 07:28:00 GMT"}, ok}, statusOK, false, 2, 1},
+		{"overflowing Retry-After is passed through", 3, []outcome{{status: statusBusy, retryAfter: "10000000000"}, ok}, statusBusy, false, 1, 0},
+		{"garbage Retry-After falls back to backoff", 3, []outcome{{status: statusBusy, retryAfter: "soon"}, ok}, statusOK, false, 2, 1},
 		{"dial error is retried", 3, []outcome{{err: dial}, ok}, statusOK, false, 2, 1},
 		{"read error after send is not retried", 3, []outcome{{err: reset}, ok}, 0, true, 1, 0},
 		{"single attempt never retries", 1, []outcome{busy, ok}, statusBusy, false, 1, 0},
@@ -159,6 +162,78 @@ func TestRetrierStopsWhenClientLeaves(t *testing.T) {
 	if len(upstream.bodies) != 1 {
 		t.Fatalf("calls = %d", len(upstream.bodies))
 	}
+}
+
+func TestRetryAfterParsing(t *testing.T) {
+	now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		value  string
+		want   time.Duration
+		parsed bool
+	}{
+		{"", 0, false},
+		{"soon", 0, false},
+		{"-1", 0, false},
+		{"0", 0, true},
+		{"3", 3 * time.Second, true},
+		{"9223372037", retryAfterCeiling, true},
+		{"99999999999999999999", retryAfterCeiling, true},
+		{"-99999999999999999999", 0, false},
+		{now.Add(2 * time.Second).Format(http.TimeFormat), 2 * time.Second, true},
+		{now.Add(-time.Minute).Format(http.TimeFormat), 0, true},
+		{now.Add(48 * time.Hour).Format(http.TimeFormat), retryAfterCeiling, true},
+	}
+	for _, tc := range cases {
+		got, parsed := retryAfter(http.Header{"Retry-After": {tc.value}}, now)
+		if got != tc.want || parsed != tc.parsed {
+			t.Errorf("Retry-After %q = %s, %v; want %s, %v", tc.value, got, parsed, tc.want, tc.parsed)
+		}
+	}
+}
+
+func TestStalled503BodyDoesNotHoldTheRetry(t *testing.T) {
+	release := make(chan struct{})
+	var count atomicCounter
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		if count.next() == 1 {
+			w.WriteHeader(statusBusy)
+			_, _ = w.Write([]byte("partial"))
+			w.(http.Flusher).Flush()
+			select { // headers sent, body never finishes
+			case <-release:
+			case <-r.Context().Done():
+			}
+			return
+		}
+		_, _ = w.Write([]byte(`{"type":"message"}`))
+	}))
+	defer upstream.Close()
+	defer close(release)
+	config := testConfig(t)
+	configureUpstream(t, config, upstream.URL, authBearer, false)
+	config.models[testModel].upstream.attempts = 2
+	relay := newTestRelay(t, config)
+	defer relay.transport.CloseIdleConnections()
+	local := httptest.NewServer(relay)
+	defer local.Close()
+	started := time.Now()
+	response, _ := roundTrip(t, local.Client(), networkRequest(t, local.URL, messagesPath, `{"model":"`+testModel+`"}`))
+	if response.StatusCode != statusOK || time.Since(started) > 3*time.Second {
+		t.Fatalf("status = %d after %s", response.StatusCode, time.Since(started))
+	}
+}
+
+type atomicCounter struct {
+	mu sync.Mutex
+	n  int
+}
+
+func (c *atomicCounter) next() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.n++
+	return c.n
 }
 
 func TestBackoffStaysWithinBounds(t *testing.T) {
