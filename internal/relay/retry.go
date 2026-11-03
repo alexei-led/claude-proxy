@@ -29,11 +29,12 @@ const (
 type replayKey struct{}
 
 // replay hands the buffered request body to the retrying transport and carries
-// the retry count back to the request log. The transport runs on the handler
-// goroutine, so no locking is needed.
+// the retry count and causes back to the request log. The transport runs on the
+// handler goroutine, so no locking is needed.
 type replay struct {
 	body    []byte
 	retries int
+	reasons []string // per retry: the upstream status, or "dial"
 }
 
 // retrier re-sends a request the upstream provably did not start generating:
@@ -62,7 +63,9 @@ func (r *retrier) RoundTrip(req *http.Request) (*http.Response, error) {
 		if !again {
 			return resp, err
 		}
+		reason := "dial"
 		if resp != nil {
+			reason = strconv.Itoa(resp.StatusCode)
 			// Close without reading: an upstream that sends 503 headers and then stalls
 			// must not hold the request. The cost is one connection that is not reused.
 			_ = resp.Body.Close()
@@ -75,6 +78,7 @@ func (r *retrier) RoundTrip(req *http.Request) (*http.Response, error) {
 		case <-timer.C:
 		}
 		state.retries++
+		state.reasons = append(state.reasons, reason)
 	}
 }
 

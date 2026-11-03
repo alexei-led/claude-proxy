@@ -60,6 +60,8 @@ Cancellation and broken-stream behavior are defined by boundary C3.
 | `internal/relay/catalog.go`               | Complete local model catalog                                      |
 | `internal/relay/forward.go`               | ReverseProxy, shared transport and response filtering             |
 | `internal/relay/process.go`               | Listener, request ownership and bounded shutdown                  |
+| `internal/relay/log.go` and `usage.go`    | Request outcomes, access records and passive usage reading        |
+| `internal/relay/stats.go`                 | In-process traffic counts, status stats and periodic summaries    |
 
 One cohesive relay package owns the transport.
 There is no plugin interface or general routing framework.

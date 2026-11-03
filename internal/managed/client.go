@@ -38,7 +38,12 @@ type Info struct {
 	Sessions  int    `json:"sessions"`
 	Requests  int    `json:"requests"`
 	Uncertain bool   `json:"tracking_uncertain"`
+	// Stats is present only in status replies.
+	Stats *relay.Stats `json:"stats,omitempty"`
 }
+
+// maxControlReply bounds a control reply; stats grow with configured routes.
+const maxControlReply = 1 << 20
 
 type request struct {
 	Operation string `json:"operation"`
@@ -124,7 +129,7 @@ func exchange(ctx context.Context, loc location, message request) (Info, error) 
 		return Info{}, errors.New("managed proxy control request failed")
 	}
 	var reply response
-	if err := json.NewDecoder(io.LimitReader(connection, 8192)).Decode(&reply); err != nil {
+	if err := json.NewDecoder(io.LimitReader(connection, maxControlReply)).Decode(&reply); err != nil {
 		return Info{}, errors.New("invalid managed proxy control response")
 	}
 	if reply.Error != "" || reply.Identity != loc.identity {

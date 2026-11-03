@@ -19,12 +19,12 @@ claude-proxy stop --config PATH
 ```
 
 `--check` performs file validation without a listener or network calls.
-Foreground operation prints readable startup, address and request lines. Terminal output is colored unless `NO_COLOR` is set; redirected output is plain text. Detached managed brokers retain bounded JSON logs. All formats omit credentials and bodies.
+Foreground operation prints readable startup, address and request lines. Terminal output is colored unless `NO_COLOR` is set; redirected output is plain text. Detached managed brokers retain bounded JSON logs with problems and traffic summaries only. All formats omit credentials and bodies. See [Logs](#logs).
 SIGINT or SIGTERM starts bounded shutdown.
 
 `run` starts or reuses a registered server for this configuration and installed binary, including a matching manually started foreground server. It registers its PID before replacing itself with the client. The broker binds a free literal loopback port; `listen` remains the standalone-mode address. A process waiting for input or running tools still counts as a session.
 
-New configuration, selected key contents or executable bytes create a new generation. Existing clients keep their old broker. No active stream is restarted and no provider request is retried. `status` reports the current generation's actual address, mode (`manual` or `managed`), version, PID, sessions, active requests and tracking uncertainty without secrets. `stop` refuses while clients or requests remain active.
+New configuration, selected key contents or executable bytes create a new generation. Existing clients keep their old broker. No active stream is restarted and no provider request is retried. `status` reports the current generation's actual address, mode (`manual` or `managed`), version, PID, sessions, active requests, tracking uncertainty and [traffic stats](#stats) without secrets. `stop` refuses while clients or requests remain active.
 
 macOS tracks process exits with kqueue. Linux records the process birth identity and checks exit/zombie state. Unknown liveness prevents idle shutdown. Detached descendants must register through their own launcher; scanning unrelated processes is not supported.
 
@@ -50,7 +50,7 @@ The parser rejects null values, extra JSON values and unsupported versions.
 | `access_token_file` | Yes      | File that contains this profile's local access token     |
 | `upstreams`         | Yes      | Nonempty object of named upstreams                       |
 | `models`            | Yes      | Nonempty object of exact native model IDs                |
-| `runtime`           | No       | Managed idle timeout and bounded forwarding concurrency |
+| `runtime`           | No       | Idle timeout, forwarding concurrency, header wait and log level |
 
 ### Discovery and ports
 
@@ -67,10 +67,13 @@ A repeated foreground start reports an existing matching server and exits withou
   "runtime": {
     "idle_timeout": "5m",
     "max_inflight": 32,
-    "response_header_timeout": "180s"
+    "response_header_timeout": "180s",
+    "log_level": "info"
   }
 }
 ```
+
+`log_level` is optional: `trace`, `debug`, `info`, `warn` or `error`. Without it, a foreground terminal uses `debug`, which shows each successful generation, and a detached managed broker uses `info`, which keeps problems and summaries only. See [Logs](#logs) for what each level adds.
 
 `response_header_timeout` defaults to `180s` and accepts 1 second to 10 minutes. It is how long one upstream try may take to start answering. Raise it for a provider that queues requests under load. It covers the wait after the request was sent; a dial or TLS handshake that stalls fails with 504 after its own 10 seconds.
 
@@ -80,7 +83,7 @@ A repeated foreground start reports an existing matching server and exits withou
 
 Managed runtime files live in an owner-only `claude-proxy` directory below the OS user cache directory, or `XDG_RUNTIME_DIR` when set. Locks, control sockets and bounded private logs are machine state, not configuration. The selected runtime parent must be absolute and the control socket path must fit within 100 bytes. Set a shorter private `XDG_RUNTIME_DIR` if needed.
 
-Control messages contain process and generation metadata, never API keys or OAuth. Per-generation logs are bounded to 1 MiB. Stopped brokers may leave stale sockets/locks/logs; the startup-lock owner safely replaces a stale socket. Do not delete runtime files while brokers are running.
+Control messages contain process and generation metadata and traffic counts, never API keys or OAuth. Each generation keeps its current log and one previous `.log.1` file, each at most 1 MiB. Stopped brokers may leave stale sockets/locks/logs; the startup-lock owner safely replaces a stale socket. Do not delete runtime files while brokers are running.
 
 Listener hostnames, wildcard addresses and leading-zero ports are invalid.
 Each profile needs its own listener, token and provider keys.
@@ -99,7 +102,7 @@ The label is not a model prefix.
 | `auth.key_file`    | For server-key modes | File that contains the selected provider's key      |
 | `retry`            | No                   | `{"max_attempts": N}`, see below                    |
 
-`retry.max_attempts` is the total number of tries per request, from 1 to 5. Omit `retry`, or use 1, for no retry. The relay re-sends only after an upstream 503 or 529 answer, or a failed connection dial, and waits 0.25 to 4 seconds between tries with jitter. It honors a `Retry-After`, in seconds or as an HTTP date, of up to 4 seconds and passes a longer one to the client. It never retries a timeout or a reset after the request was sent. The request log shows `retried ×N` when it retried. Each try gets its own `response_header_timeout`.
+`retry.max_attempts` is the total number of tries per request, from 1 to 5. Omit `retry`, or use 1, for no retry. The relay re-sends only after an upstream 503 or 529 answer, or a failed connection dial, and waits 0.25 to 4 seconds between tries with jitter. It honors a `Retry-After`, in seconds or as an HTTP date, of up to 4 seconds and passes a longer one to the client. It never retries a timeout or a reset after the request was sent. The request log shows `retried ×N` and the cause of each retry, such as `(529,529)`. Each try gets its own `response_header_timeout`.
 
 Endpoint URLs need an absolute path and host.
 HTTPS is required, except for HTTP at a literal loopback IP.
@@ -249,11 +252,48 @@ A disconnected client cancels its upstream request.
 
 ## Logs
 
-Logs contain readiness and bounded request summaries.
-Fields include the profile, method/path kind, configured model/upstream label,
-status, elapsed time, byte counts and a fixed local error category.
+Logs record lifecycle events, one record per request that deserves attention, and a periodic traffic summary. The level of a request record depends on how the request ended:
+
+| Level   | Records                                                                                |
+| ------- | -------------------------------------------------------------------------------------- |
+| `warn`  | Any failure: local rejection, capacity 429, provider error, timeout, broken stream     |
+| `info`  | Lifecycle, 5-minute summaries, requests that succeeded after a retry, client hang-ups |
+| `debug` | Each successful generation                                                             |
+| `trace` | Successful catalog and token-count requests                                            |
+
+A setting shows its level and everything above it. The defaults are `debug` in a foreground terminal and `info` in a managed broker; `runtime.log_level` overrides both.
+
+### Request records
+
+Every record has the profile, method, path kind (`messages`, `count_tokens`, `models` or `unknown`), status, outcome, elapsed time and byte counts. Other fields appear only when they apply:
+
+| Field                                                                       | Meaning                                                                                    |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `outcome`                                                                   | `ok`, `rejected`, `busy`, `upstream_error`, `upstream_unreachable`, `timeout`, `upstream_broken` or `client_closed` |
+| `model`, `upstream`                                                         | Configured labels of the route                                                             |
+| `category`                                                                  | Error type of a response the relay generated itself                                        |
+| `ttfb`                                                                      | Time until the provider's response headers reached the client, retries included           |
+| `retries`, `retry_reasons`                                                  | Retry count and the cause of each: an upstream status or `dial`                            |
+| `upstream_request_id`                                                       | The provider's `request-id` or `x-request-id`; quote it to provider support                |
+| `error_type`                                                                | Provider error type from an error body or a streamed `error` event                         |
+| `stop_reason`                                                               | Why the generation ended, such as `end_turn` or `max_tokens`                               |
+| `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens` | Usage the provider reported for a Messages response                                       |
+
+`upstream_broken` means the provider cut a response after it began, for example a stream that stopped mid-generation. Its status stays 200 because the headers were already sent; before this outcome existed, such a stream looked like a success. A stream with an `error` event is `upstream_error`, also with status 200.
+
+The terminal format shows the same facts on one line and lists only what is unusual: the outcome when it is not `ok`, the time to first byte, token counts, a stop reason other than a normal end, retries with their causes, and the provider request ID of a failed request.
+
+### Stats
+
+Each server counts requests per path, model and upstream from its start: outcomes, retries, tokens, and the 50th and 95th percentiles of time to first byte and of forwarded-request duration. Percentiles are upper bounds of fixed buckets from 100 ms to 5 minutes.
+
+- `status` returns the counts since start in its `stats` field.
+- Every 5 minutes, and once at shutdown, the log gets one `info` summary per route that had traffic in that period. Catalog reads are left out.
+
+### Content limits
 
 Model labels have a 128-byte log bound.
 Upstream labels have the schema bound stated earlier.
-Logs contain no bodies, secrets, header values, secret paths or full upstream URLs.
-The proxy creates no persistent log file.
+Provider request IDs, error types and stop reasons are logged only when they are short tokens of safe characters.
+Logs contain no bodies, secrets, other header values, secret paths or full upstream URLs.
+A foreground server writes no log file. A managed broker writes only its bounded private log.

@@ -17,12 +17,16 @@ import (
 )
 
 func main() {
-	logger := slog.New(console.New(os.Stderr, console.ColorEnabled(os.Stderr)))
+	// The terminal is a live view, so it shows successful generations (DEBUG)
+	// until the configuration says otherwise.
+	level := new(slog.LevelVar)
+	level.Set(slog.LevelDebug)
+	logger := slog.New(console.New(os.Stderr, console.ColorEnabled(os.Stderr), level))
 	if len(os.Args) > 1 && (os.Args[1] == commandManagedStart || os.Args[1] == commandManagedBroker) {
 		logger = slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	err := run(ctx, os.Args[1:], logger)
+	err := run(ctx, os.Args[1:], logger, level)
 	stop()
 	if err != nil {
 		message := "startup failed"
@@ -37,7 +41,9 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, args []string, logger *slog.Logger) error {
+// run executes one command. level is the foreground logger's minimum level;
+// a configured runtime.log_level replaces it once the configuration loads.
+func run(ctx context.Context, args []string, logger *slog.Logger, level *slog.LevelVar) error {
 	if len(args) > 0 {
 		switch args[0] {
 		case "connect":
@@ -59,6 +65,7 @@ func run(ctx context.Context, args []string, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	level.Set(config.LogLevel(level.Level()))
 	if *check {
 		logger.Info("configuration valid", "profile", config.Profile())
 		return nil

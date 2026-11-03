@@ -27,6 +27,10 @@ func (s *Server) serveListener(ctx context.Context, listener net.Listener, grace
 	active, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancel()
 	defer s.transport.CloseIdleConnections()
+	stopStats, statsDone := make(chan struct{}), make(chan struct{})
+	go func() { defer close(statsDone); s.reportStats(active, stopStats) }()
+	// Runs after shutdown has drained requests, so the final summary is complete.
+	defer func() { close(stopStats); <-statsDone }()
 	server := &http.Server{
 		Handler: s, ReadHeaderTimeout: readHeaderTimeout, ReadTimeout: readBodyTimeout,
 		IdleTimeout: 60 * time.Second, MaxHeaderBytes: maxHeaderBytes,

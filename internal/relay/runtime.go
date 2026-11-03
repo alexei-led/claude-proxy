@@ -3,6 +3,7 @@ package relay
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"time"
 )
@@ -16,6 +17,7 @@ type runtimeValues struct {
 	idle       time.Duration
 	limit      int
 	headerWait time.Duration
+	logLevel   *slog.Level
 }
 
 func runtimeSettings(raw runtimeConfig) (runtimeValues, error) {
@@ -40,7 +42,23 @@ func runtimeSettings(raw runtimeConfig) (runtimeValues, error) {
 			return runtimeValues{}, errors.New("response header timeout must be between 1s and 10m")
 		}
 	}
+	if raw.LogLevel != "" {
+		level, err := parseLogLevel(raw.LogLevel)
+		if err != nil {
+			return runtimeValues{}, err
+		}
+		values.logLevel = &level
+	}
 	return values, nil
+}
+
+// LogLevel returns the configured minimum log level, or fallback when the
+// configuration leaves it to the log destination.
+func (c *Config) LogLevel(fallback slog.Level) slog.Level {
+	if c.logLevel == nil {
+		return fallback
+	}
+	return *c.logLevel
 }
 
 // ResponseHeaderWait returns how long one upstream attempt may take to answer with headers.

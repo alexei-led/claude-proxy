@@ -8,6 +8,8 @@ const (
 	countTokensPath     = "/v1/messages/count_tokens" // #nosec G101 -- Protocol path, not a credential.
 	kindUnknown         = "unknown"
 	kindModels          = "models"
+	kindMessages        = "messages"
+	kindCountTokens     = "count_tokens"
 	invalidRequestError = "invalid_request_error"
 	apiError            = "api_error"
 	authOAuth           = "oauth_passthrough"

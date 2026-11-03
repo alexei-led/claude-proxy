@@ -28,8 +28,12 @@ func openLog(path string) (*os.File, error) {
 	return file, nil
 }
 
+// boundedLog keeps the current log and one previous file, each at most
+// maxLogBytes. A full log becomes path.1, so the records before a rollover,
+// such as startup and the first errors, survive it.
 type boundedLog struct {
 	mu   sync.Mutex
+	path string
 	file *os.File
 }
 
@@ -45,7 +49,7 @@ func (sink *boundedLog) Write(body []byte) (int, error) {
 		return 0, err
 	}
 	if info.Size()+int64(len(body)) > maxLogBytes {
-		if err := sink.file.Truncate(0); err != nil {
+		if err := sink.rotate(); err != nil {
 			return 0, err
 		}
 	}
@@ -53,4 +57,26 @@ func (sink *boundedLog) Write(body []byte) (int, error) {
 		return 0, err
 	}
 	return original, nil
+}
+
+// rotate renames the full log to path.1, replacing an older one, and opens a
+// fresh file. Raw process output, such as a crash trace, still goes to the
+// descriptor inherited at start. If a step fails, the current file is
+// emptied instead, which keeps the size bound.
+func (sink *boundedLog) rotate() error {
+	if os.Rename(sink.path, sink.path+".1") == nil {
+		if fresh, err := openLog(sink.path); err == nil {
+			_ = sink.file.Close()
+			sink.file = fresh
+			return nil
+		}
+	}
+	return sink.file.Truncate(0)
+}
+
+// Close closes the current file.
+func (sink *boundedLog) Close() error {
+	sink.mu.Lock()
+	defer sink.mu.Unlock()
+	return sink.file.Close()
 }

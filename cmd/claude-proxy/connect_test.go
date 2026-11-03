@@ -34,7 +34,7 @@ func TestConnectPreflightWithoutProviderKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	err := run(t.Context(), []string{"connect", configFlag, path, "--", filepath.Join(dir, "missing-client")}, logger)
+	err := run(t.Context(), []string{"connect", configFlag, path, "--", filepath.Join(dir, "missing-client")}, logger, new(slog.LevelVar))
 	if err == nil || err.Error() != "client executable is unavailable" {
 		t.Fatalf("expected client lookup after successful preflight, got %v", err)
 	}

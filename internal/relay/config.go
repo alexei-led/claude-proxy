@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/url"
 	"path/filepath"
@@ -42,6 +43,7 @@ type runtimeConfig struct {
 	IdleTimeout           string `json:"idle_timeout,omitempty"`
 	MaxInflight           *int   `json:"max_inflight,omitempty"`
 	ResponseHeaderTimeout string `json:"response_header_timeout,omitempty"`
+	LogLevel              string `json:"log_level,omitempty"`
 }
 
 type fileConfig struct {
@@ -75,6 +77,7 @@ type Config struct {
 	idleTimeout time.Duration
 	concurrency int
 	headerWait  time.Duration
+	logLevel    *slog.Level // nil: the caller's default for its log destination
 	fingerprint [32]byte
 }
 
@@ -140,7 +143,7 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	config := &Config{
 		profile: raw.Profile, listen: raw.Listen, token: token, models: make(map[string]model, len(raw.Models)),
-		idleTimeout: settings.idle, concurrency: settings.limit, headerWait: settings.headerWait,
+		idleTimeout: settings.idle, concurrency: settings.limit, headerWait: settings.headerWait, logLevel: settings.logLevel,
 	}
 	for id, entry := range raw.Models {
 		route, ok := compiled[entry.Upstream]
@@ -269,7 +272,7 @@ func validateConfigJSON(body []byte) error {
 	}
 	if value, exists := root["runtime"]; exists {
 		runtime, ok := value.(map[string]any)
-		if !ok || !onlyFields(runtime, "idle_timeout", "max_inflight", "response_header_timeout") {
+		if !ok || !onlyFields(runtime, "idle_timeout", "max_inflight", "response_header_timeout", "log_level") {
 			return errors.New("unknown runtime fields")
 		}
 	}

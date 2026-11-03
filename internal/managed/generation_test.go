@@ -1,6 +1,8 @@
 package managed
 
 import (
+	"encoding/json"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -118,17 +120,63 @@ func TestManagedLogRemainsBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = file.Close() }()
-	sink := &boundedLog{file: file}
-	for _, size := range []int{maxLogBytes - 1, 200, maxLogBytes + 100} {
-		if written, err := sink.Write([]byte(strings.Repeat("x", size))); err != nil || written != size {
+	sink := &boundedLog{path: path, file: file}
+	defer func() { _ = sink.Close() }()
+	for i, size := range []int{maxLogBytes - 1, 200, maxLogBytes + 100} {
+		if written, err := sink.Write([]byte(strings.Repeat(string(rune('a'+i)), size))); err != nil || written != size {
 			t.Fatal("bounded log write failed")
 		}
-		info, err := file.Stat()
-		if err != nil || info.Size() > maxLogBytes {
-			t.Fatal("managed log exceeded its size limit")
+		for _, name := range []string{path, path + ".1"} {
+			if info, err := os.Stat(name); err == nil && info.Size() > maxLogBytes {
+				t.Fatalf("%s exceeded its size limit", name)
+			}
 		}
 	}
+	// #nosec G304 -- Test-owned temporary path.
+	current, err := os.ReadFile(path)
+	if err != nil || len(current) != maxLogBytes || current[0] != 'c' {
+		t.Fatal("current log does not hold the newest record")
+	}
+	// #nosec G304 -- Test-owned temporary path.
+	previous, err := os.ReadFile(path + ".1")
+	if err != nil || len(previous) != 200 || previous[0] != 'b' {
+		t.Fatal("rotation did not keep the previous log")
+	}
+	info, err := os.Stat(path + ".1")
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatal("previous log lost its private mode")
+	}
+}
+
+func TestStatusReplyCarriesStats(t *testing.T) {
+	_, config := fixture(t, "0")
+	state := &broker{leases: make(map[int]lease), server: relay.NewServer(config, nil), info: Info{Identity: "test-generation"}}
+	exchangeWith := func(operation string) response {
+		client, server := net.Pipe()
+		defer func() { _ = client.Close() }()
+		go state.handle(server, "test-generation")
+		// net.Pipe is unbuffered: send exactly one JSON value, with no
+		// trailing newline the broker never reads.
+		message, err := json.Marshal(request{Operation: operation, Identity: "test-generation", PID: os.Getpid()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := client.Write(message); err != nil {
+			t.Fatal(err)
+		}
+		var reply response
+		if err := json.NewDecoder(client).Decode(&reply); err != nil {
+			t.Fatal(err)
+		}
+		return reply
+	}
+	if reply := exchangeWith(operationStatus); reply.Error != "" || reply.Stats == nil || reply.Stats.Since.IsZero() {
+		t.Fatalf("status reply lacks stats: %+v", reply)
+	}
+	if reply := exchangeWith(operationRegister); reply.Error != "" || reply.Stats != nil {
+		t.Fatalf("register reply wrong: %+v", reply)
+	}
+	state.closeWatches()
 }
 
 func TestIdleWindowResetsWhenAClientRegisters(t *testing.T) {
