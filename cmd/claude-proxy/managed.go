@@ -15,7 +15,11 @@ import (
 	"github.com/alexei-led/claude-proxy/internal/relay"
 )
 
-const commandStop = "stop"
+const (
+	commandStop          = "stop"
+	commandManagedStart  = "managed-start"
+	commandManagedBroker = "managed-broker"
+)
 
 func managedRun(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
@@ -70,12 +74,12 @@ func managedCommand(ctx context.Context, operation string, args []string) error 
 		return errors.New("invalid managed proxy arguments")
 	}
 	switch operation {
-	case "managed-start":
+	case commandManagedStart:
 		if *identity == "" {
 			return errors.New("managed generation identity is required")
 		}
 		return managed.StartDetached(ctx, *path, *identity)
-	case "managed-broker":
+	case commandManagedBroker:
 		if *identity == "" {
 			return errors.New("managed generation identity is required")
 		}

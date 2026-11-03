@@ -19,12 +19,12 @@ claude-proxy stop --config PATH
 ```
 
 `--check` performs file validation without a listener or network calls.
-Normal operation prints a non-secret `ready` record after the socket opens.
+Foreground operation prints readable startup, address and request lines. Terminal output is colored unless `NO_COLOR` is set; redirected output is plain text. Detached managed brokers retain bounded JSON logs. All formats omit credentials and bodies.
 SIGINT or SIGTERM starts bounded shutdown.
 
-`run` starts or reuses a managed broker for this configuration and installed binary. It registers its PID before replacing itself with the client. The broker binds a free literal loopback port; `listen` remains the standalone-mode address. A process waiting for input or running tools still counts as a session.
+`run` starts or reuses a registered server for this configuration and installed binary, including a matching manually started foreground server. It registers its PID before replacing itself with the client. The broker binds a free literal loopback port; `listen` remains the standalone-mode address. A process waiting for input or running tools still counts as a session.
 
-New configuration, selected key contents or executable bytes create a new generation. Existing clients keep their old broker. No active stream is restarted and no provider request is retried. `status` reports the current generation's version, PID, sessions, active requests and tracking uncertainty without secrets. `stop` refuses while clients or requests remain active.
+New configuration, selected key contents or executable bytes create a new generation. Existing clients keep their old broker. No active stream is restarted and no provider request is retried. `status` reports the current generation's actual address, mode (`manual` or `managed`), version, PID, sessions, active requests and tracking uncertainty without secrets. `stop` refuses while clients or requests remain active.
 
 macOS tracks process exits with kqueue. Linux records the process birth identity and checks exit/zombie state. Unknown liveness prevents idle shutdown. Detached descendants must register through their own launcher; scanning unrelated processes is not supported.
 
@@ -51,6 +51,14 @@ The parser rejects null values, extra JSON values and unsupported versions.
 | `upstreams`         | Yes      | Nonempty object of named upstreams                       |
 | `models`            | Yes      | Nonempty object of exact native model IDs                |
 | `runtime`           | No       | Managed idle timeout and bounded forwarding concurrency |
+
+### Discovery and ports
+
+Both foreground and managed servers register in the same private control registry. Matching means the canonical configuration path, immutable configuration/credential snapshot and installed executable match; the catalog alone is not proof of identity. Servers from older versions without foreground registration need one restart after upgrading. Unknown processes listening on a port are never adopted or killed.
+
+Managed servers bind a free loopback port. Foreground servers bind `listen`. The launcher asks the registry for the actual address and passes it only to its child; no port edits or guessing are needed. Different configurations have separate identities and local tokens. For multiple foreground configurations, select distinct `listen` ports; a collision fails clearly rather than attaching to another config.
+
+A repeated foreground start reports an existing matching server and exits without creating a duplicate or changing its ownership mode. A managed server remains managed; a manual server remains manual. Manually started servers never auto-close, even when the config includes a managed idle timeout. Use Ctrl-C/SIGTERM or an explicit idle-only `stop` command to stop them. Stopping a manual server can affect clients attached to it.
 
 ### Runtime settings
 

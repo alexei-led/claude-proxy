@@ -88,39 +88,32 @@ func Serve(ctx context.Context, path, identity string) error {
 	defer func() { _ = logFile.Close() }()
 	sink := &boundedLog{file: logFile}
 	logger := slog.New(slog.NewJSONHandler(sink, nil))
-	control, err := (&net.ListenConfig{}).Listen(ctx, "unix", loc.socket)
+	control, err := listenControl(ctx, loc)
 	if err != nil {
-		return errors.New("cannot bind managed control socket")
+		return err
 	}
-	// Only the startup-lock holder removes stale sockets. A retiring broker must
-	// never unlink a socket that a replacement broker has just bound.
-	control.(*net.UnixListener).SetUnlinkOnClose(false)
 	defer func() { _ = control.Close() }()
-	if err := os.Chmod(loc.socket, 0o600); err != nil {
-		return errors.New("cannot secure managed control socket")
-	}
 	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp4", "127.0.0.1:0")
 	if err != nil {
 		return errors.New("cannot bind managed loopback listener")
 	}
 	defer func() { _ = listener.Close() }()
-	return serveBroker(ctx, config, relay.NewServer(config, logger), control, listener, identity)
+	return serveBroker(ctx, config, relay.NewServer(config, logger), control, listener, identity, ModeManaged, nil)
 }
 
-func serveBroker(ctx context.Context, config *relay.Config, server *relay.Server, control, listener net.Listener, identity string) error {
+func serveBroker(ctx context.Context, config *relay.Config, server *relay.Server, control, listener net.Listener, identity, mode string, ready func()) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	version := "development"
-	if build, ok := debug.ReadBuildInfo(); ok && build.Main.Version != "" {
-		version = build.Main.Version
-	}
-	state := &broker{cancel: cancel, leases: make(map[int]lease), server: server, info: Info{Address: listener.Addr().String(), Identity: identity, Version: version, PID: os.Getpid()}}
+	state := &broker{cancel: cancel, leases: make(map[int]lease), server: server, info: Info{Address: listener.Addr().String(), Identity: identity, Version: buildVersion(), PID: os.Getpid(), Mode: mode}}
 	controlsDone := make(chan error, 1)
 	go func() {
 		controlsDone <- serveControl(ctx, control, func(connection net.Conn) { state.handle(connection, identity) })
 	}()
 	served := make(chan error, 1)
 	go func() { served <- server.Serve(ctx, listener) }()
+	if ready != nil {
+		ready()
+	}
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 	for {
@@ -233,7 +226,7 @@ func (b *broker) tick(now time.Time, idle time.Duration) bool {
 			delete(b.leases, pid)
 		}
 	}
-	if idle == 0 || len(b.leases) > 0 || b.server.ActiveRequests() > 0 {
+	if b.info.Mode == ModeManual || idle == 0 || len(b.leases) > 0 || b.server.ActiveRequests() > 0 {
 		b.idleSince = time.Time{}
 		return false
 	}
@@ -300,4 +293,25 @@ func recoverableAccept(err error) bool {
 		}
 	}
 	return false
+}
+
+func listenControl(ctx context.Context, loc location) (net.Listener, error) {
+	control, err := (&net.ListenConfig{}).Listen(ctx, "unix", loc.socket)
+	if err != nil {
+		return nil, errors.New("cannot bind proxy control socket")
+	}
+	// Only a startup-lock holder removes stale sockets, not a retiring server.
+	control.(*net.UnixListener).SetUnlinkOnClose(false)
+	if err := os.Chmod(loc.socket, 0o600); err != nil {
+		_ = control.Close()
+		return nil, errors.New("cannot secure proxy control socket")
+	}
+	return control, nil
+}
+
+func buildVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" {
+		return info.Main.Version
+	}
+	return "development"
 }
