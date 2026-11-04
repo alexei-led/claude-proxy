@@ -96,7 +96,7 @@ func TestBrokerObservesControlFailureAndClosesHTTPListener(t *testing.T) {
 	defer func() { _ = listener.Close() }()
 	control := &scriptedListener{steps: []acceptStep{{err: errors.New("terminal accept failure")}}}
 	server := relay.NewServer(config, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	err = serveBroker(t.Context(), config, server, control, listener, "test-generation", ModeManaged, nil)
+	err = serveBroker(t.Context(), config, server, control, listener, "test-generation", ModeManaged, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "managed control listener failed") {
 		t.Fatalf("terminal control failure was not propagated: %v", err)
 	}

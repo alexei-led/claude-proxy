@@ -19,7 +19,7 @@ claude-proxy stop --config PATH
 ```
 
 `--check` performs file validation without a listener or network calls.
-Foreground operation prints readable startup, address and request lines. Terminal output is colored unless `NO_COLOR` is set; redirected output is plain text. Detached managed brokers retain bounded JSON logs with problems and traffic summaries only. All formats omit credentials and bodies. See [Logs](#logs).
+Foreground operation uses a live view on a capable terminal. It shows the address, registered sessions, active requests and up to 12 recent records. After 30 seconds without active requests or new request records, it clears the recent traffic and shows `IDLE`. The original terminal screen returns on exit. `NO_COLOR` disables colors, not the live view. Redirected output and `TERM=dumb` remain append-only plain text. Detached managed brokers retain bounded JSON logs with problems and traffic summaries only. All formats omit credentials and bodies. See [Logs](#logs).
 SIGINT or SIGTERM starts bounded shutdown.
 
 `run` starts or reuses a registered server for this configuration and installed binary, including a matching manually started foreground server. It registers its PID before replacing itself with the client. The broker binds a free literal loopback port; `listen` remains the standalone-mode address. A process waiting for input or running tools still counts as a session.
@@ -287,8 +287,9 @@ The terminal format shows the same facts on one line and lists only what is unus
 
 Each server counts requests per path, model and upstream from its start: outcomes, retries, tokens, and the 50th and 95th percentiles of time to first byte and of forwarded-request duration. Percentiles are upper bounds of fixed buckets from 100 ms to 5 minutes.
 
-- `status` returns the counts since start in its `stats` field.
-- Every 5 minutes, and once at shutdown, the log gets one `info` summary per route that had traffic in that period. Catalog reads are left out.
+- `status` returns the counts since start in its `stats` field. It also returns current `registered_clients`, `active_requests` and `tracking_uncertain` values. Traffic summaries include these current values too.
+- Registered clients are processes launched through `claude-proxy run`, including clients of a foreground server. They may be waiting for input or tools. Direct, manually configured clients are not registered; the display marks that limit. Active requests include direct clients and live streams, not idle HTTP connections. A `tracking_uncertain` value of `true` means at least one registered process could not be verified.
+- Every 5 minutes, and once at shutdown, the log gets one `info` summary per route that had traffic in that period. Intervals without new traffic emit no summary. Catalog reads are left out. An idle live view does not redisplay these historical summaries; its current counts remain visible.
 
 ### Content limits
 

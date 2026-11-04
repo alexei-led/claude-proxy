@@ -70,5 +70,11 @@ func run(ctx context.Context, args []string, logger *slog.Logger, level *slog.Le
 		logger.Info("configuration valid", "profile", config.Profile())
 		return nil
 	}
-	return managed.ServeForeground(ctx, *path, config, logger)
+	var activity func(int, bool, int)
+	if handler, ok := logger.Handler().(*console.Handler); ok {
+		handler.StartLive()
+		defer handler.Close()
+		activity = handler.Activity
+	}
+	return managed.ServeForeground(ctx, *path, config, logger, activity)
 }

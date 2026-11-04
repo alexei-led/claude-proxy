@@ -13,6 +13,11 @@ import (
 	"unicode"
 )
 
+const (
+	messageStarting = "starting"
+	messageReady    = "ready"
+)
+
 // Handler prints operator-facing records; it never prints arbitrary attributes.
 type Handler struct {
 	writer io.Writer
@@ -21,6 +26,7 @@ type Handler struct {
 	color  bool
 	attrs  []slog.Attr
 	group  string
+	view   *liveView
 }
 
 // New creates a human-readable logger sink with explicit color policy and a
@@ -59,7 +65,7 @@ func (handler *Handler) Handle(_ context.Context, record slog.Record) error {
 	label := strings.ToUpper(record.Message)
 	message := ""
 	switch record.Message {
-	case "starting", "already running":
+	case messageStarting, "already running":
 		mode := value("mode")
 		policy := ""
 		if mode == "manual" {
@@ -69,7 +75,7 @@ func (handler *Handler) Handle(_ context.Context, record slog.Record) error {
 	case "configuration valid":
 		label = "VALID"
 		message = value("profile")
-	case "ready":
+	case messageReady:
 		message = fmt.Sprintf("%s  http://%s", value("profile"), value("listen"))
 	case "request":
 		label = value("status")
@@ -102,6 +108,9 @@ func (handler *Handler) Handle(_ context.Context, record slog.Record) error {
 	line := fmt.Sprintf("%s  %s %s\n", record.Time.Format("15:04:05"), label, message)
 	handler.mutex.Lock()
 	defer handler.mutex.Unlock()
+	if handler.view != nil {
+		return handler.liveRecord(record.Message, line, record.Time)
+	}
 	_, err := io.WriteString(handler.writer, line)
 	return err
 }
@@ -197,6 +206,12 @@ func requestDetails(values map[string]slog.Value) string {
 
 func statsDetails(values map[string]slog.Value) string {
 	var parts []string
+	if _, ok := values["registered_clients"]; ok {
+		parts = append(parts, fmt.Sprintf("%d registered sessions · %d active requests (manual clients not counted)", count(values, "registered_clients"), count(values, "active_requests")))
+		if value := values["tracking_uncertain"]; value.Kind() == slog.KindBool && value.Bool() {
+			parts = append(parts, "tracking uncertain")
+		}
+	}
 	for _, key := range []string{"failed", "client_closed", "retries"} {
 		if n := count(values, key); n > 0 {
 			parts = append(parts, fmt.Sprintf("%s %d", strings.ReplaceAll(key, "_", " "), n))

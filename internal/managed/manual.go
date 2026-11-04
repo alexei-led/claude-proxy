@@ -14,7 +14,7 @@ import (
 
 // ServeForeground registers a manually owned server in the shared discovery
 // registry. Existing matching servers are reported, never replaced or promoted.
-func ServeForeground(ctx context.Context, path string, config *relay.Config, logger *slog.Logger) error {
+func ServeForeground(ctx context.Context, path string, config *relay.Config, logger *slog.Logger, activity func(int, bool, int)) error {
 	loc, err := locate(path, config)
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func ServeForeground(ctx context.Context, path string, config *relay.Config, log
 	defer func() { _ = control.Close() }()
 	logger.Info("starting", "profile", config.Profile(), "listen", listener.Addr().String(), "pid", os.Getpid(), "mode", ModeManual, "version", buildVersion())
 	defer logger.Info("stopped", "profile", config.Profile(), "mode", ModeManual)
-	return serveBroker(ctx, config, relay.NewServer(config, logger), control, listener, loc.identity, ModeManual, unlock)
+	return serveBroker(ctx, config, relay.NewServer(config, logger), control, listener, loc.identity, ModeManual, unlock, activity)
 }
 
 // A retiring registered server can close control just before releasing TCP.

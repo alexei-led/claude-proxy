@@ -337,6 +337,7 @@ func TestStatsSummaryLogsOnlyNewTraffic(t *testing.T) {
 	record(kindMessages, outcomeUpstreamErr, 80*time.Millisecond, tokenCounts{})
 	record(kindMessages, outcomeClientClosed, 0, tokenCounts{})
 	record(kindModels, outcomeOK, 0, tokenCounts{})
+	relay.SetClients(2, true)
 	first := relay.stats.copyRoutes()
 	relay.logStats(t.Context(), map[routeKey]routeCounts{}, first, time.Minute)
 	relay.logStats(t.Context(), first, relay.stats.copyRoutes(), time.Minute)
@@ -345,6 +346,7 @@ func TestStatsSummaryLogsOnlyNewTraffic(t *testing.T) {
 		t.Fatalf("want one summary for the messages route only, got %v", records)
 	}
 	for key, want := range map[string]any{
+		"registered_clients": 2.0, "tracking_uncertain": true, "active_requests": 0.0,
 		"requests": 3.0, "failed": 1.0, "client_closed": 1.0, "input_tokens": 10.0, "output_tokens": 20.0,
 		"ttfb_p50": float64(100 * time.Millisecond), "ttfb_p95": float64(500 * time.Millisecond),
 	} {

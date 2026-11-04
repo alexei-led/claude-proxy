@@ -176,7 +176,15 @@ func TestStatusReplyCarriesStats(t *testing.T) {
 	if reply := exchangeWith(operationRegister); reply.Error != "" || reply.Stats != nil {
 		t.Fatalf("register reply wrong: %+v", reply)
 	}
+	if reply := exchangeWith(operationStatus); reply.Stats == nil || reply.Stats.RegisteredClients != 1 || reply.Stats.ActiveRequests != 0 {
+		t.Fatalf("registered client missing from stats: %+v", reply)
+	}
 	state.closeWatches()
+	delete(state.leases, os.Getpid())
+	state.tick(time.Now(), 0)
+	if stats := state.server.Stats(); stats.RegisteredClients != 0 || stats.TrackingUncertain {
+		t.Fatalf("removed registration remains in stats: %+v", stats)
+	}
 }
 
 func TestIdleWindowResetsWhenAClientRegisters(t *testing.T) {
@@ -189,6 +197,9 @@ func TestIdleWindowResetsWhenAClientRegisters(t *testing.T) {
 	state.leases[os.Getpid()] = lease{}
 	if state.tick(now.Add(time.Hour), time.Second) {
 		t.Fatal("uncertain live registration was closed")
+	}
+	if stats := state.server.Stats(); stats.RegisteredClients != 1 || !stats.TrackingUncertain {
+		t.Fatalf("uncertain client count missing: %+v", stats)
 	}
 	delete(state.leases, os.Getpid())
 	if state.tick(now.Add(2*time.Hour), time.Second) {
