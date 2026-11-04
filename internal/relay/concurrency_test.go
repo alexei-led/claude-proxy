@@ -72,6 +72,9 @@ func TestConfiguredThirtyTwoConcurrentRequests(t *testing.T) {
 	for range 32 {
 		<-entered
 	}
+	if stats := server.Stats(); stats.ActiveRequests != 32 || stats.RegisteredClients != 0 {
+		t.Fatalf("direct request counts wrong: %+v", stats)
+	}
 	if peak.Load() != 32 || server.ActiveRequests() != 32 {
 		t.Fatal("configured concurrency was not admitted")
 	}
@@ -86,6 +89,9 @@ func TestConfiguredThirtyTwoConcurrentRequests(t *testing.T) {
 		if code := <-done; code != http.StatusOK {
 			t.Fatalf("forward status=%d", code)
 		}
+	}
+	if stats := server.Stats(); stats.ActiveRequests != 0 {
+		t.Fatalf("completed requests remain active: %+v", stats)
 	}
 	if !server.BeginDrainIfIdle() {
 		t.Fatal("idle shutdown was unavailable after completion")

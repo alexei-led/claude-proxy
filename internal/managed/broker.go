@@ -102,10 +102,10 @@ func Serve(ctx context.Context, path, identity string) error {
 		return errors.New("cannot bind managed loopback listener")
 	}
 	defer func() { _ = listener.Close() }()
-	return serveBroker(ctx, config, relay.NewServer(config, logger), control, listener, identity, ModeManaged, nil)
+	return serveBroker(ctx, config, relay.NewServer(config, logger), control, listener, identity, ModeManaged, nil, nil)
 }
 
-func serveBroker(ctx context.Context, config *relay.Config, server *relay.Server, control, listener net.Listener, identity, mode string, ready func()) error {
+func serveBroker(ctx context.Context, config *relay.Config, server *relay.Server, control, listener net.Listener, identity, mode string, ready func(), activity func(int, bool, int)) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	state := &broker{cancel: cancel, leases: make(map[int]lease), server: server, info: Info{Address: listener.Addr().String(), Identity: identity, Version: buildVersion(), PID: os.Getpid(), Mode: mode}}
@@ -146,6 +146,9 @@ func serveBroker(ctx context.Context, config *relay.Config, server *relay.Server
 		case now := <-ticker.C:
 			if state.tick(now, config.IdleTimeout()) {
 				cancel()
+			}
+			if activity != nil {
+				activity(server.Clients())
 			}
 		}
 	}
@@ -195,6 +198,7 @@ func (b *broker) handle(connection net.Conn, identity string) {
 		}
 	}
 	reply.Info = b.snapshot()
+	b.server.SetClients(reply.Sessions, reply.Uncertain)
 	if message.Operation == operationStatus && reply.Error == "" {
 		stats := b.server.Stats()
 		reply.Stats = &stats
@@ -234,6 +238,8 @@ func (b *broker) tick(now time.Time, idle time.Duration) bool {
 			delete(b.leases, pid)
 		}
 	}
+	info := b.snapshot()
+	b.server.SetClients(info.Sessions, info.Uncertain)
 	if b.info.Mode == ModeManual || idle == 0 || len(b.leases) > 0 || b.server.ActiveRequests() > 0 {
 		b.idleSince = time.Time{}
 		return false

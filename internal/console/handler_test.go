@@ -138,8 +138,9 @@ func TestStatsLine(t *testing.T) {
 	logger := slog.New(New(&output, false, slog.LevelInfo))
 	logger.Info("stats", "path", "messages", "model", "m", "upstream", "u", "period", 5*time.Minute, "requests", int64(9),
 		"failed", int64(2), "client_closed", int64(0), "retries", int64(1), "ttfb_p50", time.Second, "ttfb_p95", 5*time.Second,
-		"duration_p95", 30*time.Second, "input_tokens", int64(100), "output_tokens", int64(50))
-	for _, want := range []string{"STATS", "m → u", "9 req", "failed 2", "retries 1", "ttfb p50 1s p95 5s", "duration p95 30s", "tokens 100→50", "over 5m0s"} {
+		"duration_p95", 30*time.Second, "input_tokens", int64(100), "output_tokens", int64(50),
+		"registered_clients", 2, "active_requests", 0, "tracking_uncertain", true)
+	for _, want := range []string{"STATS", "m → u", "9 req", "failed 2", "retries 1", "ttfb p50 1s p95 5s", "duration p95 30s", "tokens 100→50", "over 5m0s", "2 registered sessions", "0 active requests", "tracking uncertain", "manual clients not counted"} {
 		if !strings.Contains(output.String(), want) {
 			t.Errorf("missing %q in %q", want, output.String())
 		}

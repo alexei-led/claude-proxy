@@ -30,15 +30,17 @@ const statusClientClosed = 499
 
 // Server owns one profile's immutable routes and bounded transport.
 type Server struct {
-	config    *Config
-	logger    *slog.Logger
-	transport *http.Transport
-	proxies   map[*url.URL]*httputil.ReverseProxy
-	slots     chan struct{}
-	lifecycle sync.Mutex
-	draining  bool
-	catalog   []byte
-	stats     *stats
+	config            *Config
+	logger            *slog.Logger
+	transport         *http.Transport
+	proxies           map[*url.URL]*httputil.ReverseProxy
+	slots             chan struct{}
+	lifecycle         sync.Mutex
+	draining          bool
+	registeredClients int
+	trackingUncertain bool
+	catalog           []byte
+	stats             *stats
 	// statsEvery is how often a traffic summary is logged; tests shorten it.
 	statsEvery time.Duration
 }

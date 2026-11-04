@@ -142,8 +142,11 @@ func sortedKeys(routes map[routeKey]routeCounts) []routeKey {
 // Stats is a cumulative traffic summary for status output. It holds
 // configured labels and counts only, never request content.
 type Stats struct {
-	Since  time.Time    `json:"since"`
-	Routes []RouteStats `json:"routes"`
+	RegisteredClients int          `json:"registered_clients"`
+	ActiveRequests    int          `json:"active_requests"`
+	TrackingUncertain bool         `json:"tracking_uncertain"`
+	Since             time.Time    `json:"since"`
+	Routes            []RouteStats `json:"routes"`
 }
 
 // RouteStats counts one path, model and upstream. Latencies are histogram
@@ -165,7 +168,22 @@ type RouteStats struct {
 	CacheWriteTokens int64            `json:"cache_write_tokens,omitempty"`
 }
 
-// Stats returns counts since the server was created.
+// SetClients updates the broker's registered process count. Direct clients
+// are not registered and cannot be counted while idle.
+func (s *Server) SetClients(registered int, uncertain bool) {
+	s.lifecycle.Lock()
+	defer s.lifecycle.Unlock()
+	s.registeredClients, s.trackingUncertain = registered, uncertain
+}
+
+// Clients returns registered processes, tracking uncertainty and live requests.
+func (s *Server) Clients() (registered int, uncertain bool, requests int) {
+	s.lifecycle.Lock()
+	defer s.lifecycle.Unlock()
+	return s.registeredClients, s.trackingUncertain, len(s.slots)
+}
+
+// Stats returns cumulative traffic and the current client/request counts.
 func (s *Server) Stats() Stats {
 	routes := s.stats.copyRoutes()
 	result := Stats{Since: s.stats.since, Routes: make([]RouteStats, 0, len(routes))}
@@ -180,6 +198,7 @@ func (s *Server) Stats() Stats {
 			DurationP50: durationLabel(counts.duration.quantile(0.5)), DurationP95: durationLabel(counts.duration.quantile(0.95)),
 		})
 	}
+	result.RegisteredClients, result.TrackingUncertain, result.ActiveRequests = s.Clients()
 	return result
 }
 
@@ -218,6 +237,7 @@ func (s *Server) logStats(ctx context.Context, last, current map[routeKey]routeC
 	if s.logger == nil || !s.logger.Enabled(ctx, slog.LevelInfo) {
 		return
 	}
+	registered, uncertain, requests := s.Clients()
 	for _, key := range sortedKeys(current) {
 		if key.path == kindModels {
 			continue // catalog reads are local and say nothing about providers
@@ -227,6 +247,7 @@ func (s *Server) logStats(ctx context.Context, last, current map[routeKey]routeC
 			continue
 		}
 		attrs := []slog.Attr{
+			slog.Int("registered_clients", registered), slog.Bool("tracking_uncertain", uncertain), slog.Int("active_requests", requests),
 			slog.String("profile", s.config.profile), slog.String("path", key.path),
 			slog.String("model", key.model), slog.String("upstream", key.upstream),
 			slog.Duration("period", period.Round(time.Second)), slog.Int64("requests", delta.requests),
