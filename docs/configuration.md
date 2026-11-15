@@ -271,7 +271,7 @@ Every record has the profile, method, path kind (`messages`, `count_tokens`, `mo
 | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `outcome`                                                                   | `ok`, `rejected`, `busy`, `upstream_error`, `upstream_unreachable`, `timeout`, `upstream_broken` or `client_closed` |
 | `model`, `upstream`                                                        | Requested model and configured upstream of a recognized route                                                       |
-| `forwarded_model`                                                          | Native model ID handed to the upstream proxy, unchanged from `model`                                                |
+| `forwarded_model`                                                          | Safe, untruncated native model ID handed to the upstream proxy, when representable                                  |
 | `body_reported_model`                                                      | Model reported in a Messages JSON body or SSE `message_start.message.model`                                         |
 | `header_reported_model`                                                    | Model reported by the final upstream `x-valar-served-model` header                                                  |
 | `category`                                                                  | Error type of a response the relay generated itself                                        |
@@ -300,9 +300,9 @@ Each server counts requests per path, model and upstream from its start: outcome
 
 ### Content limits
 
-Model labels have a 128-byte log bound.
+The existing `model` display label truncates IDs after 128 bytes and adds `...`. It is not an exact identity when truncated. `forwarded_model` is omitted for truncated or unsafe labels. The proxy still forwards these configured native IDs unchanged.
 Upstream labels have the schema bound stated earlier.
-Provider-reported model IDs must contain 1–128 ASCII bytes: letters, digits or `_`, `-`, `.`, `:`, `/`, `[` and `]`. Invalid or oversized values are omitted, not truncated. Duplicate or comma-combined `x-valar-served-model` values are omitted. Only the final response header supplies header attribution, not informational responses, trailers or client headers.
+Forwarded and provider-reported identity fields must contain 1–128 ASCII bytes: letters, digits or `_`, `-`, `.`, `:`, `/`, `[` and `]`. Invalid or oversized values are omitted, not truncated. Duplicate or comma-combined `x-valar-served-model` values are omitted. Only the final response header supplies header attribution, not informational responses, trailers or client headers.
 Body attribution uses the existing bounded usage reader: at most 1 MiB for JSON and 64 KiB per SSE line. Unsupported, invalid or oversized body data can leave body attribution unknown. Response bytes and headers remain unchanged.
 Provider request IDs, error types and stop reasons are logged only when they are short tokens of safe characters.
 Logs contain no bodies, secrets, arbitrary header values, secret paths or full upstream URLs.

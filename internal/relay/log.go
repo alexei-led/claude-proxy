@@ -115,7 +115,7 @@ func (s *Server) logRequest(ctx context.Context, w *responseSummary, method, kin
 	add("model", w.model)
 	add("upstream", w.upstream)
 	if w.forwarded {
-		add("forwarded_model", w.model) // native model IDs are never rewritten
+		add("forwarded_model", modelLabel(w.model)) // omit truncated or unsafe display labels
 	}
 	add("header_reported_model", w.headerModel)
 	add("category", w.category)

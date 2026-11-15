@@ -222,7 +222,7 @@ Local `govulncheck` v1.9.0 found no vulnerabilities with Go 1.27.4 and the publi
 
 ## Model attribution preparation
 
-Synthetic upstream checks cover JSON/SSE body and header disagreement, missing reports, safe identifier boundaries and invalid model types. Other cases cover duplicate headers, control characters, oversized values, body-reader limits and client-header spoofing. Informational responses and trailers do not supply model attribution. Response bytes, status and headers remain unchanged. Tests also require one configured stats route with unchanged cumulative token counts across different provider-reported models.
+Synthetic upstream checks cover JSON/SSE body and header disagreement, missing reports, safe identifier boundaries and invalid model types. Recognized 129-byte and unsafe native IDs retain their request bytes and existing display/stats labels, but omit exact forwarded identity metadata. Safe 128-byte IDs, including literal ellipses, retain their exact identity. Other cases cover duplicate headers, control characters, oversized values, body-reader limits and client-header spoofing. Informational responses and trailers do not supply model attribution. Response bytes, status and headers remain unchanged. Tests also require one configured stats route with unchanged cumulative token counts across different provider-reported models.
 
 This evidence does not attest any real backend, served effort, provider bill or account identity. No live Valar request is part of these checks. Publication and hosted release checks remain separate gates.
 
