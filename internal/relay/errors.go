@@ -22,6 +22,7 @@ type responseSummary struct {
 	forwarded    bool          // the request was handed to the upstream proxy
 	ttfb         time.Duration // until upstream response headers reached the client
 	requestID    string
+	headerModel  string    // reported only by the final upstream x-valar-served-model header
 	writeFailed  bool      // writing to the client failed: the client left
 	usage        *usageTap // only for forwarded Messages requests
 }
@@ -36,6 +37,7 @@ func (w *responseSummary) WriteHeader(status int) {
 		if w.forwarded && w.category == "" {
 			w.ttfb = time.Since(w.start)
 			w.requestID = upstreamRequestID(w.Header())
+			w.headerModel = headerReportedModel(w.Header())
 			if w.usage != nil {
 				w.usage.begin(w.Header())
 			}

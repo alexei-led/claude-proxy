@@ -114,6 +114,10 @@ func (s *Server) logRequest(ctx context.Context, w *responseSummary, method, kin
 	}
 	add("model", w.model)
 	add("upstream", w.upstream)
+	if w.forwarded {
+		add("forwarded_model", w.model) // native model IDs are never rewritten
+	}
+	add("header_reported_model", w.headerModel)
 	add("category", w.category)
 	if w.ttfb > 0 {
 		attrs = append(attrs, slog.Duration("ttfb", w.ttfb))
@@ -124,6 +128,7 @@ func (s *Server) logRequest(ctx context.Context, w *responseSummary, method, kin
 	}
 	add("upstream_request_id", w.requestID)
 	if tap := w.usage; tap != nil {
+		add("body_reported_model", tap.model)
 		add("error_type", tap.errorType)
 		add("stop_reason", tap.stopReason)
 		if tap.seen {

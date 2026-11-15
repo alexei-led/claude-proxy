@@ -12,6 +12,7 @@ A passing fake-provider test does not prove a real provider or client combinatio
 | `v0.1.2` | [Release notes](releases/v0.1.2.md) | Homebrew distribution and release-to-tap automation |
 | `v0.1.3` | [Release notes](releases/v0.1.3.md) | Process-local `connect` helper for mixed model-proxy sessions |
 | `v0.1.4` | [Release notes](releases/v0.1.4.md) | Tool-schema `pattern` removal on server-key routes |
+| `v0.3.0` | [Release notes](releases/v0.3.0.md) | Prepared: source-labeled model attribution in request diagnostics                    |
 
 [GitHub Releases](https://github.com/alexei-led/claude-proxy/releases) is the source of publication status.
 Committed notes alone do not prove that a release exists.
@@ -212,6 +213,12 @@ These cases remain outside the recorded acceptance:
 
 No test result here authorizes company data transmission or provider spending.
 Risks are defined in the [architecture](design.md#risks).
+
+## Model attribution preparation
+
+Synthetic upstream checks cover JSON/SSE body and header disagreement, missing reports, safe identifier boundaries and invalid model types. Other cases cover duplicate headers, control characters, oversized values, body-reader limits and client-header spoofing. Informational responses and trailers do not supply model attribution. Response bytes, status and headers remain unchanged. Tests also require one configured stats route with unchanged cumulative token counts across different provider-reported models.
+
+This evidence does not attest any real backend, served effort, provider bill or account identity. No live Valar request is part of these checks. Publication and hosted release checks remain separate gates.
 
 ## Documentation checks
 
