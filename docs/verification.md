@@ -49,8 +49,8 @@ Remaining implementation work belongs in the [plan](plans/implement-claude-proxy
 
 | Tool                          | Version                  |
 | ----------------------------- | ------------------------ |
-| Go                            | 1.27.3, darwin/arm64     |
-| Module language               | Go 1.27.0                |
+| Go                            | 1.27.4, darwin/arm64     |
+| Module minimum                | Go 1.27.4                |
 | golangci-lint                 | 2.15.0                   |
 | Node.js for router validation | 24.15.0                  |
 | External router source        | 1.17.1, commit `7e1274b` |
@@ -213,6 +213,12 @@ These cases remain outside the recorded acceptance:
 
 No test result here authorizes company data transmission or provider spending.
 Risks are defined in the [architecture](design.md#risks).
+
+## Release toolchain security
+
+The module minimum and CI/release pins require Go 1.27.4. The public advisory [GO-2026-6859](https://pkg.go.dev/vuln/GO-2026-6859) identifies earlier Go 1.27 releases as affected. It describes an HTTP/1 server crash from a `MaxBytesReader` header race. The [Go security announcement](https://groups.google.com/g/golang-announce/c/iY8TY0wWgbM) confirms the fix in Go 1.27.4.
+
+Local `govulncheck` v1.9.0 found no vulnerabilities with Go 1.27.4 and the public database dated 2026-11-11. This is version and scanner evidence, not a reproduction of the crash in this proxy. Hosted CI and published-asset verification remain release gates.
 
 ## Model attribution preparation
 
