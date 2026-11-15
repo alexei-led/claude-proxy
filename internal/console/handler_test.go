@@ -105,6 +105,8 @@ func TestRequestDetailsShowOnlyWhatMatters(t *testing.T) {
 		{"plain success", []any{outcome, "ok", "ttfb", 820 * time.Millisecond, "input_tokens", int64(12), "output_tokens", int64(56),
 			"stop_reason", "end_turn", "upstream_request_id", "req_1"},
 			[]string{"ttfb 820ms", "tokens 12→56"}, []string{" ok", "end_turn", "req_1", "cache"}},
+		{"model attribution", []any{"forwarded_model", "m", "body_reported_model", "body-model", "header_reported_model", "served-model"},
+			[]string{"forwarded m", "body-reported body-model", "header-reported served-model"}, nil},
 		{"broken stream", []any{outcome, "upstream_broken", "upstream_request_id", "req_2"},
 			[]string{"upstream_broken", "id req_2"}, nil},
 		{"provider error", []any{outcome, "upstream_error", "error_type", "overloaded_error", "retries", int64(2), "retry_reasons", "529,529"},

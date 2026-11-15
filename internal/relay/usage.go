@@ -30,7 +30,7 @@ type tokenCounts struct {
 	input, output, cacheRead, cacheWrite int64
 }
 
-// usageTap reads token usage, stop reason and error type from a forwarded
+// usageTap reads model identity, token usage, stop reason and error type from a forwarded
 // Messages response as it passes. It never changes or delays the bytes.
 type usageTap struct {
 	mode       int
@@ -39,6 +39,7 @@ type usageTap struct {
 	event      string
 	seen       bool
 	tokens     tokenCounts
+	model      string
 	stopReason string
 	errorType  string
 }
@@ -111,7 +112,8 @@ func (tap *usageTap) line(line []byte) {
 	case "data":
 		var data struct {
 			Message *struct {
-				Usage *usageFields `json:"usage"`
+				Model json.RawMessage `json:"model"`
+				Usage *usageFields    `json:"usage"`
 			} `json:"message"`
 			Delta *struct {
 				StopReason string `json:"stop_reason"`
@@ -128,6 +130,9 @@ func (tap *usageTap) line(line []byte) {
 			return
 		}
 		if data.Message != nil {
+			if tap.event == "message_start" {
+				tap.model = bodyReportedModel(data.Message.Model)
+			}
 			tap.apply(data.Message.Usage)
 		}
 		tap.apply(data.Usage)
@@ -146,11 +151,13 @@ func (tap *usageTap) finish() {
 		return
 	}
 	var body struct {
-		StopReason string       `json:"stop_reason"`
-		Usage      *usageFields `json:"usage"`
-		Error      *errorField  `json:"error"`
+		Model      json.RawMessage `json:"model"`
+		StopReason string          `json:"stop_reason"`
+		Usage      *usageFields    `json:"usage"`
+		Error      *errorField     `json:"error"`
 	}
 	if json.Unmarshal(tap.buffer, &body) == nil {
+		tap.model = bodyReportedModel(body.Model)
 		tap.apply(body.Usage)
 		tap.setStop(body.StopReason)
 		if body.Error != nil {

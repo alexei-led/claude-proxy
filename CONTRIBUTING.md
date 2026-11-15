@@ -2,13 +2,15 @@
 
 ## Requirements
 
-- Go 1.27.3. The module declares Go 1.27.0.
+- Go 1.27.4 or later. The module requires Go 1.27.4.
 - golangci-lint 2.15.0, with a version-2 configuration.
 - Bash for the documented-command tests.
 - Node.js 22 or later for optional router-profile validation.
 
 Production code and Go tests use the standard library.
-No Makefile target installs or upgrades tools.
+Go 1.27.4 fixes the `net/http` issue [GO-2026-6859](https://pkg.go.dev/vuln/GO-2026-6859).
+CI and release builds pin this version. The module minimum also rejects older toolchains.
+The Makefile uses `GOTOOLCHAIN=local`. No Makefile target installs or upgrades tools.
 Windows is not a target because private-file rules use Unix ownership and no-follow opens.
 
 ## Build and tests

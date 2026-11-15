@@ -168,9 +168,16 @@ func count(values map[string]slog.Value, key string) int64 {
 }
 
 // requestDetails lists only what is unusual: the failure, slow first byte,
-// token use and retries. A plain success adds nothing but token counts.
+// token use, retries and explicitly sourced model identity reports.
 func requestDetails(values map[string]slog.Value) string {
 	var parts []string
+	for _, field := range []struct{ key, label string }{
+		{"forwarded_model", "forwarded"}, {"body_reported_model", "body-reported"}, {"header_reported_model", "header-reported"},
+	} {
+		if model := text(values, field.key); model != "" {
+			parts = append(parts, field.label+" "+model)
+		}
+	}
 	result := text(values, "outcome")
 	for _, key := range []string{"outcome", "category", "error_type"} {
 		if value := text(values, key); value != "" && value != "ok" {

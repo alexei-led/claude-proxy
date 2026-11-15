@@ -270,7 +270,10 @@ Every record has the profile, method, path kind (`messages`, `count_tokens`, `mo
 | Field                                                                       | Meaning                                                                                    |
 | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `outcome`                                                                   | `ok`, `rejected`, `busy`, `upstream_error`, `upstream_unreachable`, `timeout`, `upstream_broken` or `client_closed` |
-| `model`, `upstream`                                                         | Configured labels of the route                                                             |
+| `model`, `upstream`                                                        | Requested model and configured upstream of a recognized route                                                       |
+| `forwarded_model`                                                          | Safe, untruncated native model ID handed to the upstream proxy, when representable                                  |
+| `body_reported_model`                                                      | Model reported in a Messages JSON body or SSE `message_start.message.model`                                         |
+| `header_reported_model`                                                    | Model reported by the final upstream `x-valar-served-model` header                                                  |
 | `category`                                                                  | Error type of a response the relay generated itself                                        |
 | `ttfb`                                                                      | Time until the provider's response headers reached the client, retries included           |
 | `retries`, `retry_reasons`                                                  | Retry count and the cause of each: an upstream status or `dial`                            |
@@ -281,11 +284,15 @@ Every record has the profile, method, path kind (`messages`, `count_tokens`, `mo
 
 `upstream_broken` means the provider cut a response after it began, for example a stream that stopped mid-generation. Its status stays 200 because the headers were already sent; before this outcome existed, such a stream looked like a success. A stream with an `error` event is `upstream_error`, also with status 200.
 
-The terminal format shows the same facts on one line and lists only what is unusual: the outcome when it is not `ok`, the time to first byte, token counts, a stop reason other than a normal end, retries with their causes, and the provider request ID of a failed request.
+The terminal format shows these facts on one line. Model identity fields have explicit `forwarded`, `body-reported` and `header-reported` labels. Other details include failures, time to first byte, token counts, unusual stop reasons, retries and the provider request ID of a failed request.
+
+Model reports are claims from the upstream, not independent backend attestation. A response body can echo the requested model. A header can disagree with that body. The proxy retains each available identity separately and does not infer served effort, change the route or retry because of a disagreement. An absent report means unknown, not proof that the requested model served the request.
+
+Successful generation records require `runtime.log_level: "debug"` in managed mode. Model reports follow the existing request log levels and do not create additional records.
 
 ### Stats
 
-Each server counts requests per path, model and upstream from its start: outcomes, retries, tokens, and the 50th and 95th percentiles of time to first byte and of forwarded-request duration. Percentiles are upper bounds of fixed buckets from 100 ms to 5 minutes.
+Each server counts requests per path, model and upstream from its start: outcomes, retries, tokens, and the 50th and 95th percentiles of time to first byte and of forwarded-request duration. Percentiles are upper bounds of fixed buckets from 100 ms to 5 minutes. Stats retain configured route labels only. Provider-reported model identities appear in request records, not aggregate keys or token totals.
 
 - `status` returns the counts since start in its `stats` field. It also returns current `registered_clients`, `active_requests` and `tracking_uncertain` values. Traffic summaries include these current values too.
 - Registered clients are processes launched through `claude-proxy run`, including clients of a foreground server. They may be waiting for input or tools. Direct, manually configured clients are not registered; the display marks that limit. Active requests include direct clients and live streams, not idle HTTP connections. A `tracking_uncertain` value of `true` means at least one registered process could not be verified.
@@ -293,8 +300,10 @@ Each server counts requests per path, model and upstream from its start: outcome
 
 ### Content limits
 
-Model labels have a 128-byte log bound.
+The existing `model` display label truncates IDs after 128 bytes and adds `...`. It is not an exact identity when truncated. `forwarded_model` is omitted for truncated or unsafe labels. The proxy still forwards these configured native IDs unchanged.
 Upstream labels have the schema bound stated earlier.
+Forwarded and provider-reported identity fields must contain 1–128 ASCII bytes: letters, digits or `_`, `-`, `.`, `:`, `/`, `[` and `]`. Invalid or oversized values are omitted, not truncated. Duplicate or comma-combined `x-valar-served-model` values are omitted. Only the final response header supplies header attribution, not informational responses, trailers or client headers.
+Body attribution uses the existing bounded usage reader: at most 1 MiB for JSON and 64 KiB per SSE line. Unsupported, invalid or oversized body data can leave body attribution unknown. Response bytes and headers remain unchanged.
 Provider request IDs, error types and stop reasons are logged only when they are short tokens of safe characters.
-Logs contain no bodies, secrets, other header values, secret paths or full upstream URLs.
+Logs contain no bodies, secrets, arbitrary header values, secret paths or full upstream URLs.
 A foreground server writes no log file. A managed broker writes only its bounded private log.
