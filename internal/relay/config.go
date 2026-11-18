@@ -20,6 +20,8 @@ import (
 const (
 	maxConfigBytes = 1 << 20
 	maxSecretBytes = 16 << 10
+	// DefaultRouterProvider is the router profile name a configuration selects when it names none.
+	DefaultRouterProvider = "model-proxy"
 )
 
 type authConfig struct {
@@ -52,6 +54,7 @@ type fileConfig struct {
 	Profile         string                    `json:"profile"`
 	Listen          string                    `json:"listen"`
 	AccessTokenFile string                    `json:"access_token_file"`
+	RouterProvider  string                    `json:"router_provider,omitempty"`
 	Upstreams       map[string]upstreamConfig `json:"upstreams"`
 	Models          map[string]modelConfig    `json:"models"`
 }
@@ -70,15 +73,16 @@ type model struct {
 
 // Config is a validated, immutable snapshot of one profile.
 type Config struct {
-	profile     string
-	listen      string
-	token       string
-	models      map[string]model
-	idleTimeout time.Duration
-	concurrency int
-	headerWait  time.Duration
-	logLevel    *slog.Level // nil: the caller's default for its log destination
-	fingerprint [32]byte
+	profile        string
+	listen         string
+	token          string
+	routerProvider string
+	models         map[string]model
+	idleTimeout    time.Duration
+	concurrency    int
+	headerWait     time.Duration
+	logLevel       *slog.Level // nil: the caller's default for its log destination
+	fingerprint    [32]byte
 }
 
 // Profile returns the selected profile label.
@@ -86,6 +90,10 @@ func (c *Config) Profile() string { return c.profile }
 
 // Listen returns the validated loopback listener address.
 func (c *Config) Listen() string { return c.listen }
+
+// RouterProvider returns the claude-model-router profile name this configuration selects: the
+// child reads <name>-router.json in its Claude Code profile directory.
+func (c *Config) RouterProvider() string { return c.routerProvider }
 
 // LoadConfig validates and snapshots one profile without network access.
 // Errors deliberately omit paths, supplied values and secret contents.
@@ -142,7 +150,8 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 	config := &Config{
-		profile: raw.Profile, listen: raw.Listen, token: token, models: make(map[string]model, len(raw.Models)),
+		profile: raw.Profile, listen: raw.Listen, token: token, routerProvider: raw.RouterProvider,
+		models:      make(map[string]model, len(raw.Models)),
 		idleTimeout: settings.idle, concurrency: settings.limit, headerWait: settings.headerWait, logLevel: settings.logLevel,
 	}
 	for id, entry := range raw.Models {
@@ -191,6 +200,11 @@ func readConfig(path string) (fileConfig, error) {
 	if raw.AccessTokenFile == "" || len(raw.Models) == 0 || len(raw.Upstreams) == 0 {
 		return fileConfig{}, errors.New("configuration requires an access token, upstreams and models")
 	}
+	if raw.RouterProvider == "" {
+		raw.RouterProvider = DefaultRouterProvider
+	} else if !safeProviderName(raw.RouterProvider) {
+		return fileConfig{}, errors.New("invalid router provider")
+	}
 	if _, err := runtimeSettings(raw.Runtime); err != nil {
 		return fileConfig{}, err
 	}
@@ -203,6 +217,20 @@ func safeLabel(value string) bool {
 	}
 	for _, ch := range value {
 		if (ch < 'a' || ch > 'z') && (ch < 'A' || ch > 'Z') && (ch < '0' || ch > '9') && ch != '-' && ch != '_' {
+			return false
+		}
+	}
+	return true
+}
+
+// safeProviderName accepts the names claude-model-router resolves to <provider>-router.json:
+// a lowercase letter first, then lowercase letters, digits and hyphens, at most 64 characters.
+func safeProviderName(value string) bool {
+	if value == "" || len(value) > 64 || value[0] < 'a' || value[0] > 'z' {
+		return false
+	}
+	for _, ch := range value {
+		if (ch < 'a' || ch > 'z') && (ch < '0' || ch > '9') && ch != '-' {
 			return false
 		}
 	}
@@ -267,7 +295,7 @@ func validateConfigJSON(body []byte) error {
 		return errors.New("configuration must contain one object")
 	}
 	root, ok := value.(map[string]any)
-	if !ok || !onlyFields(root, "version", "profile", "listen", "access_token_file", "upstreams", "models", "runtime") {
+	if !ok || !onlyFields(root, "version", "profile", "listen", "access_token_file", "router_provider", "upstreams", "models", "runtime") {
 		return errors.New("unknown configuration fields")
 	}
 	if value, exists := root["runtime"]; exists {

@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+const testRouterProvider = "model-proxy-glm"
+
 func writeFixture(t *testing.T, name, value string, mode os.FileMode) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
@@ -25,6 +27,26 @@ func configFixture(t *testing.T, edit func(string) string) string {
 		body = edit(body)
 	}
 	return writeFixture(t, "config.json", body, 0o600)
+}
+
+func TestRouterProviderDefaultsAndOverrides(t *testing.T) {
+	defaults, err := LoadConfig(configFixture(t, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if defaults.RouterProvider() != DefaultRouterProvider {
+		t.Fatalf("default provider = %q", defaults.RouterProvider())
+	}
+	custom := configFixture(t, func(body string) string {
+		return strings.Replace(body, versionFragment, `"router_provider":"model-proxy-glm",`+versionFragment, 1)
+	})
+	loaded, err := LoadConfig(custom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.RouterProvider() != testRouterProvider {
+		t.Fatalf("configured provider = %q", loaded.RouterProvider())
+	}
 }
 
 func TestConfig(t *testing.T) {
@@ -64,6 +86,14 @@ func TestConfig(t *testing.T) {
 		{"header timeout too short", versionFragment, `"runtime":{"response_header_timeout":"500ms"},"version":1`, false},
 		{"header timeout too long", versionFragment, `"runtime":{"response_header_timeout":"11m"},"version":1`, false},
 		{"header timeout garbage", versionFragment, `"runtime":{"response_header_timeout":"soon"},"version":1`, false},
+		{"router provider", versionFragment, `"router_provider":"model-proxy-glm","version":1`, true},
+		{"router provider empty uses default", versionFragment, `"router_provider":"","version":1`, true},
+		{"router provider uppercase", versionFragment, `"router_provider":"Model-Proxy","version":1`, false},
+		{"router provider underscore", versionFragment, `"router_provider":"model_proxy","version":1`, false},
+		{"router provider leading digit", versionFragment, `"router_provider":"1proxy","version":1`, false},
+		{"router provider trailing hyphen", versionFragment, `"router_provider":"proxy-","version":1`, true},
+		{"router provider too long", versionFragment, `"router_provider":"` + strings.Repeat("a", 65) + `","version":1`, false},
+		{"router provider unknown field", versionFragment, `"routerProvider":"model-proxy","version":1`, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
