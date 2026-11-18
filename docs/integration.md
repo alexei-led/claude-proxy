@@ -270,7 +270,7 @@ claude-proxy connect --config "$proxy_config" -- claude --model 'deepseek-flash[
 
 `connect` reads the selected configuration and local token, not provider key files.
 It checks the local catalog without sending OAuth or contacting upstreams.
-It sets the URL, local header and `CLAUDE_ROUTER_PROVIDER=model-proxy` only for the child.
+It sets the URL, local header and `CLAUDE_ROUTER_PROVIDER` from the proxy configuration only for the child. The default is `model-proxy`; see [router profile selection](configuration.md#router-profile-selection) to choose another profile.
 It replaces its process with the explicit command, preserving terminal signals and exit status.
 It neither starts the server nor changes login or configuration files.
 
@@ -283,8 +283,8 @@ Confirm the actual route during acceptance.
 
 For manual process-local setup without the helper:
 
-Use `CLAUDE_ROUTER_PROVIDER=model-proxy`.
-This identifier selects `model-proxy-router.json` inside `CLAUDE_CONFIG_DIR`.
+Use `CLAUDE_ROUTER_PROVIDER=model-proxy` for the default profile, or the `router_provider` from your proxy configuration for another profile.
+The default selects `model-proxy-router.json` inside `CLAUDE_CONFIG_DIR`.
 If `CLAUDE_CONFIG_DIR` is unset, the directory is `~/.claude`.
 It is not a file path.
 The default provider uses `router.json`.
