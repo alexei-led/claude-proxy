@@ -48,7 +48,7 @@ jobs:
           for os in darwin linux; do
             for arch in amd64 arm64; do
               CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOTOOLCHAIN=local \
-                go build -trimpath -ldflags="-s -w" \
+                go build -trimpath -ldflags="-s -w -X main.version=$RELEASE_TAG" \
                 -o "dist/claude-proxy_${os}_${arch}" ./cmd/claude-proxy
             done
           done

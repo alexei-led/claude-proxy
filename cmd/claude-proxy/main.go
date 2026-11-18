@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -16,7 +17,13 @@ import (
 	"github.com/alexei-led/claude-proxy/internal/relay"
 )
 
+var version = "dev"
+
 func main() {
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-version") {
+		fmt.Println("claude-proxy", version)
+		return
+	}
 	// The terminal is a live view, so it shows successful generations (DEBUG)
 	// until the configuration says otherwise.
 	level := new(slog.LevelVar)

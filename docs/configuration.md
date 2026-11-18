@@ -10,6 +10,7 @@ See the [examples](../examples/) for complete JSON files.
 ## Command line
 
 ```text
+claude-proxy --version
 claude-proxy --config PATH
 claude-proxy --config PATH --check
 claude-proxy run --config PATH -- COMMAND [ARGS]
@@ -18,6 +19,7 @@ claude-proxy status --config PATH
 claude-proxy stop --config PATH
 ```
 
+`--version` prints the release tag, or `dev` for a source build without an injected version.
 `--check` performs file validation without a listener or network calls.
 Foreground operation uses a live view on a capable terminal. It shows the address, registered sessions, active requests and up to 12 recent records. After 30 seconds without active requests or new request records, it clears the recent traffic and shows `IDLE`. The original terminal screen returns on exit. `NO_COLOR` disables colors, not the live view. Redirected output and `TERM=dumb` remain append-only plain text. Detached managed brokers retain bounded JSON logs with problems and traffic summaries only. All formats omit credentials and bodies. See [Logs](#logs).
 SIGINT or SIGTERM starts bounded shutdown.
@@ -30,7 +32,7 @@ macOS tracks process exits with kqueue. Linux records the process birth identity
 
 `connect` is an optional process-local client helper. It does not start a listener.
 It reads the configuration and local token without opening upstream key files, checks the complete local catalog, and replaces its process with the supplied command.
-The child receives `ANTHROPIC_BASE_URL`, the separate access header and `CLAUDE_ROUTER_PROVIDER` set to the configuration's `router_provider` (`model-proxy` unless it names another). That name selects `<name>-router.json` in the child's Claude Code profile directory, so two configurations over one account can run different router profiles.
+The child receives `ANTHROPIC_BASE_URL`, the separate access header and `CLAUDE_ROUTER_PROVIDER` set to the configuration's `router_provider` (`model-proxy` unless it names another). That name selects `<name>-router.json` in the child's Claude Code profile directory, except `anthropic` selects `router.json`. Two configurations over one account can run different router profiles.
 The parent environment and saved OAuth remain unchanged. Resolve conflicting client settings and policies before use.
 See [client setup](integration.md#6-start-the-opted-in-session) for constraints and the manual alternative.
 
@@ -52,6 +54,22 @@ The parser rejects null values, extra JSON values and unsupported versions.
 | `upstreams`         | Yes      | Nonempty object of named upstreams                       |
 | `models`            | Yes      | Nonempty object of exact native model IDs                |
 | `runtime`           | No       | Idle timeout, forwarding concurrency, header wait and log level |
+
+### Router profile selection
+
+`router_provider` is a local claude-model-router profile name, not an upstream name or a file path. It does not choose a model, endpoint or credential. The router plugin chooses the model and effort; the proxy forwards the request to the upstream configured for that exact native model ID.
+
+Add the optional field to a proxy configuration to select a different router profile for clients started with `run` or `connect`:
+
+```text
+"router_provider": "model-proxy-glm"
+```
+
+The helper sets `CLAUDE_ROUTER_PROVIDER=model-proxy-glm` in the child only. The router then reads `model-proxy-glm-router.json` in `CLAUDE_CONFIG_DIR`, or `~/.claude` if unset. Create and configure that router file separately; the proxy does not create or validate it. Missing or invalid selected router files leave the client's native model and effort unchanged, with a router warning. Check `/router` to confirm selection and routing state.
+
+Omit the field or use an empty string to select `model-proxy` and its `model-proxy-router.json`. The special name `anthropic` selects `router.json`. Other names select `<name>-router.json`. Names must start with a lowercase letter, use only lowercase letters, digits and hyphens, and contain at most 64 characters. Invalid names fail proxy configuration validation.
+
+Different proxy configurations can select different router profiles in one Claude Code account. Each configuration still needs its own listener and local token. Ensure every router model's bare native ID is in the matching proxy catalog. The helper owns the provider setting: do not put `CLAUDE_ROUTER_PROVIDER` or `ANTHROPIC_CUSTOM_HEADERS` in explicit client `--settings` arguments. If starting the client manually without `run` or `connect`, set `CLAUDE_ROUTER_PROVIDER` yourself; the proxy cannot set another process's environment. Without the router plugin, the setting has no effect.
 
 ### Discovery and ports
 
