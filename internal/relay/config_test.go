@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+const testRouterProvider = "model-proxy-glm"
+
 func writeFixture(t *testing.T, name, value string, mode os.FileMode) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
@@ -42,7 +44,7 @@ func TestRouterProviderDefaultsAndOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.RouterProvider() != "model-proxy-glm" {
+	if loaded.RouterProvider() != testRouterProvider {
 		t.Fatalf("configured provider = %q", loaded.RouterProvider())
 	}
 }

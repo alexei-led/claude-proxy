@@ -18,8 +18,37 @@ func TestClientConfig(t *testing.T) {
 	if client.BaseURL != "http://"+testHost || client.LocalKey != "dummy-personal-access" || len(client.Models) != 1 || client.Models[0] != testModel {
 		t.Fatal("unexpected connection")
 	}
+	if client.RouterProvider != DefaultRouterProvider {
+		t.Fatalf("router provider = %q", client.RouterProvider)
+	}
 	if _, err := LoadConfig(path); err == nil {
 		t.Fatal("server should require its own provider key")
+	}
+}
+
+func TestClientConfigKeepsTheConfiguredRouterProvider(t *testing.T) {
+	path := configFixture(t, func(body string) string {
+		return strings.Replace(body, versionFragment, `"router_provider":"model-proxy-glm",`+versionFragment, 1)
+	})
+	client, err := LoadClientConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.RouterProvider != testRouterProvider {
+		t.Fatalf("loaded provider = %q", client.RouterProvider)
+	}
+}
+
+func TestClientAtCarriesTheRouterProvider(t *testing.T) {
+	path := configFixture(t, func(body string) string {
+		return strings.Replace(body, versionFragment, `"router_provider":"model-proxy-glm",`+versionFragment, 1)
+	})
+	config, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client := config.ClientAt("127.0.0.1:1"); client.RouterProvider != testRouterProvider {
+		t.Fatalf("ClientAt provider = %q", client.RouterProvider)
 	}
 }
 

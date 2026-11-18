@@ -90,7 +90,12 @@ func (c *Config) ClientAt(address string) *ClientConfig {
 	for id := range c.models {
 		models = append(models, id)
 	}
-	return &ClientConfig{BaseURL: "http://" + address, LocalKey: c.token, Models: models}
+	return &ClientConfig{
+		BaseURL:        "http://" + address,
+		LocalKey:       c.token,
+		RouterProvider: c.routerProvider,
+		Models:         models,
+	}
 }
 
 // ActiveRequests reports forwarded requests, including live streams.
