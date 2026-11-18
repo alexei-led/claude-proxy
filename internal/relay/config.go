@@ -91,8 +91,8 @@ func (c *Config) Profile() string { return c.profile }
 // Listen returns the validated loopback listener address.
 func (c *Config) Listen() string { return c.listen }
 
-// RouterProvider returns the claude-model-router profile name this configuration selects: the
-// child reads <name>-router.json in its Claude Code profile directory.
+// RouterProvider returns the claude-model-router profile name this configuration selects.
+// The router selects the corresponding file in the child's Claude Code profile directory.
 func (c *Config) RouterProvider() string { return c.routerProvider }
 
 // LoadConfig validates and snapshots one profile without network access.
@@ -223,7 +223,7 @@ func safeLabel(value string) bool {
 	return true
 }
 
-// safeProviderName accepts the names claude-model-router resolves to <provider>-router.json:
+// safeProviderName accepts claude-model-router profile identifiers:
 // a lowercase letter first, then lowercase letters, digits and hyphens, at most 64 characters.
 func safeProviderName(value string) bool {
 	if value == "" || len(value) > 64 || value[0] < 'a' || value[0] > 'z' {

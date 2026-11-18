@@ -10,6 +10,7 @@ See the [examples](../examples/) for complete JSON files.
 ## Command line
 
 ```text
+claude-proxy --version
 claude-proxy --config PATH
 claude-proxy --config PATH --check
 claude-proxy run --config PATH -- COMMAND [ARGS]
@@ -18,6 +19,7 @@ claude-proxy status --config PATH
 claude-proxy stop --config PATH
 ```
 
+`--version` prints the release tag, or `dev` for a source build without an injected version.
 `--check` performs file validation without a listener or network calls.
 Foreground operation uses a live view on a capable terminal. It shows the address, registered sessions, active requests and up to 12 recent records. After 30 seconds without active requests or new request records, it clears the recent traffic and shows `IDLE`. The original terminal screen returns on exit. `NO_COLOR` disables colors, not the live view. Redirected output and `TERM=dumb` remain append-only plain text. Detached managed brokers retain bounded JSON logs with problems and traffic summaries only. All formats omit credentials and bodies. See [Logs](#logs).
 SIGINT or SIGTERM starts bounded shutdown.
@@ -30,7 +32,7 @@ macOS tracks process exits with kqueue. Linux records the process birth identity
 
 `connect` is an optional process-local client helper. It does not start a listener.
 It reads the configuration and local token without opening upstream key files, checks the complete local catalog, and replaces its process with the supplied command.
-The child receives `ANTHROPIC_BASE_URL`, the separate access header and `CLAUDE_ROUTER_PROVIDER` set to the configuration's `router_provider` (`model-proxy` unless it names another). That name selects `<name>-router.json` in the child's Claude Code profile directory, so two configurations over one account can run different router profiles.
+The child receives `ANTHROPIC_BASE_URL`, the separate access header and `CLAUDE_ROUTER_PROVIDER` set to the configuration's `router_provider` (`model-proxy` unless it names another). That name selects `<name>-router.json` in the child's Claude Code profile directory, except `anthropic` selects `router.json`. Two configurations over one account can run different router profiles.
 The parent environment and saved OAuth remain unchanged. Resolve conflicting client settings and policies before use.
 See [client setup](integration.md#6-start-the-opted-in-session) for constraints and the manual alternative.
 
