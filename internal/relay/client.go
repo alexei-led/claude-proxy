@@ -5,9 +5,10 @@ import "errors"
 // ClientConfig contains only the selected connection and local authentication.
 // It contains no upstream credentials.
 type ClientConfig struct {
-	BaseURL  string
-	LocalKey string
-	Models   []string
+	BaseURL        string
+	LocalKey       string
+	RouterProvider string
+	Models         []string
 }
 
 // LoadClientConfig reads the connection without opening upstream key files.
@@ -27,5 +28,10 @@ func LoadClientConfig(path string) (*ClientConfig, error) {
 		}
 		models = append(models, id)
 	}
-	return &ClientConfig{BaseURL: "http://" + raw.Listen, LocalKey: token, Models: models}, nil
+	return &ClientConfig{
+		BaseURL:        "http://" + raw.Listen,
+		LocalKey:       token,
+		RouterProvider: raw.RouterProvider,
+		Models:         models,
+	}, nil
 }

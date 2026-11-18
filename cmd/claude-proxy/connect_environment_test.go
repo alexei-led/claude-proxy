@@ -22,6 +22,7 @@ import (
 )
 
 const testLocalKey = "dummy-local"
+const testBaseURL = "http://127.0.0.1:43172"
 const testNativeModel = "native"
 const testClientName = "claude"
 
@@ -38,13 +39,17 @@ func environmentMap(environment []string) map[string]string {
 func TestClientEnvironment(t *testing.T) {
 	parent := []string{"HOME=/fixture", "CLAUDE_CONFIG_DIR=/fixture/work", "PATH=/bin", "OTHER=value", "ANTHROPIC_API_KEY=unused-api-key", "ANTHROPIC_AUTH_TOKEN=unused-token", "ANTHROPIC_CUSTOM_HEADERS=X-Unrelated: kept"}
 	before := append([]string(nil), parent...)
-	config := &relay.ClientConfig{BaseURL: "http://127.0.0.1:43172", LocalKey: testLocalKey}
+	config := &relay.ClientConfig{
+		BaseURL:        "http://127.0.0.1:43172",
+		LocalKey:       testLocalKey,
+		RouterProvider: relay.DefaultRouterProvider,
+	}
 	result, err := clientEnvironment(parent, config)
 	if err != nil {
 		t.Fatal(err)
 	}
 	values := environmentMap(result)
-	if values[baseURLEnv] != config.BaseURL || values[routerProviderEnv] != proxyProvider || values[customHeadersEnv] != "X-Unrelated: kept\nX-Claude-Proxy-Key: dummy-local" {
+	if values[baseURLEnv] != config.BaseURL || values[routerProviderEnv] != relay.DefaultRouterProvider || values[customHeadersEnv] != "X-Unrelated: kept\nX-Claude-Proxy-Key: dummy-local" {
 		t.Fatal("connection environment missing")
 	}
 	for _, key := range []string{"HOME", "CLAUDE_CONFIG_DIR", "PATH", "OTHER"} {
@@ -59,6 +64,21 @@ func TestClientEnvironment(t *testing.T) {
 	}
 	if !reflect.DeepEqual(parent, before) {
 		t.Fatal("parent environment changed")
+	}
+}
+
+func TestClientEnvironmentUsesTheConfiguredRouterProvider(t *testing.T) {
+	config := &relay.ClientConfig{
+		BaseURL:        testBaseURL,
+		LocalKey:       testLocalKey,
+		RouterProvider: "model-proxy-glm",
+	}
+	result, err := clientEnvironment([]string{"PATH=/bin"}, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values := environmentMap(result); values[routerProviderEnv] != "model-proxy-glm" {
+		t.Fatalf("router provider = %q", values[routerProviderEnv])
 	}
 }
 
@@ -200,7 +220,7 @@ func TestConnectExecPreservesProcessAndExit(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(body)), "\n")
-	if len(lines) != 4 || lines[0] != strconv.Itoa(command.Process.Pid) || lines[1] != dir+"/work" || lines[2] != proxyProvider || lines[3] != "X-Claude-Proxy-Key: dummy-local" {
+	if len(lines) != 4 || lines[0] != strconv.Itoa(command.Process.Pid) || lines[1] != dir+"/work" || lines[2] != relay.DefaultRouterProvider || lines[3] != "X-Claude-Proxy-Key: dummy-local" {
 		t.Fatal("exec did not preserve PID/profile/environment")
 	}
 }

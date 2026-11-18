@@ -30,7 +30,7 @@ macOS tracks process exits with kqueue. Linux records the process birth identity
 
 `connect` is an optional process-local client helper. It does not start a listener.
 It reads the configuration and local token without opening upstream key files, checks the complete local catalog, and replaces its process with the supplied command.
-The child receives `ANTHROPIC_BASE_URL`, the separate access header and `CLAUDE_ROUTER_PROVIDER=model-proxy`.
+The child receives `ANTHROPIC_BASE_URL`, the separate access header and `CLAUDE_ROUTER_PROVIDER` set to the configuration's `router_provider` (`model-proxy` unless it names another). That name selects `<name>-router.json` in the child's Claude Code profile directory, so two configurations over one account can run different router profiles.
 The parent environment and saved OAuth remain unchanged. Resolve conflicting client settings and policies before use.
 See [client setup](integration.md#6-start-the-opted-in-session) for constraints and the manual alternative.
 
@@ -48,6 +48,7 @@ The parser rejects null values, extra JSON values and unsupported versions.
 | `profile`           | Yes      | `personal` or `work`                                     |
 | `listen`            | Yes      | Literal `127.0.0.1` and an explicit port from 1 to 65535 |
 | `access_token_file` | Yes      | File that contains this profile's local access token     |
+| `router_provider` | No       | Router profile name the child selects; `model-proxy` by default |
 | `upstreams`         | Yes      | Nonempty object of named upstreams                       |
 | `models`            | Yes      | Nonempty object of exact native model IDs                |
 | `runtime`           | No       | Idle timeout, forwarding concurrency, header wait and log level |

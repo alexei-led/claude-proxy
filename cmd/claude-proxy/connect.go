@@ -22,7 +22,6 @@ const (
 	baseURLEnv        = "ANTHROPIC_BASE_URL"
 	customHeadersEnv  = "ANTHROPIC_CUSTOM_HEADERS"
 	routerProviderEnv = "CLAUDE_ROUTER_PROVIDER"
-	proxyProvider     = "model-proxy"
 	localKeyHeader    = "X-Claude-Proxy-Key"
 )
 
@@ -92,7 +91,7 @@ func clientEnvironment(parent []string, config *relay.ClientConfig) ([]string, e
 	delete(values, "ANTHROPIC_AUTH_TOKEN")
 	values[baseURLEnv] = config.BaseURL
 	values[customHeadersEnv] = headers
-	values[routerProviderEnv] = proxyProvider
+	values[routerProviderEnv] = config.RouterProvider
 	environment := make([]string, 0, len(values))
 	for name, value := range values {
 		environment = append(environment, name+"="+value)
